@@ -1,5 +1,22 @@
-# LEARNINGS — Competitive Intelligence
+# LEARNINGS — AURESTATE
 _2026-04-28_
+
+---
+
+## DÉCISIONS FONDATRICES
+
+| Question | Décision | Impact |
+|---|---|---|
+| Marché cible | **France** | DVF valide, architecture FR |
+| Source DVF | **API data.gouv.fr** | Pas de CSV, toujours à jour |
+| Géocodage | **API Adresse data.gouv.fr** | Gratuit, 99.9% couverture |
+| Périmètre MVP | **France métropolitaine** | Volume maîtrisé |
+
+> L'intelligence compétitive australienne (REA, Domain, Coposit) reste utile comme **benchmark UX/produit** mais l'architecture data est 100% FR.
+
+---
+
+## Competitive Intelligence — Benchmarks (référence UX uniquement)
 
 ---
 
