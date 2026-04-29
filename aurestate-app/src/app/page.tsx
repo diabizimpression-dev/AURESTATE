@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState, useRef, useCallback, useEffect } from "react"
+import { motion, AnimatePresence, useInView } from "framer-motion"
 import {
   MapPin, Home, Ruler, Loader2, TrendingUp, TrendingDown,
   BarChart3, Building2, Calculator, Minus, ArrowUp, ArrowDown,
-  ChevronUp, Sparkles, Target, ShieldCheck,
+  ChevronUp, Sparkles, Target, ShieldCheck, CheckCircle2, AlertTriangle, XCircle,
+  Activity,
 } from "lucide-react"
 import {
   fetchEstimation,
@@ -59,6 +60,56 @@ function monthlyPayment(principal: number, annualRate: number, years: number): n
   const r = annualRate / 12
   const n = years * 12
   return (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1)
+}
+
+// ─── Trust strip ─────────────────────────────────────────────────────────────
+
+function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true })
+
+  useEffect(() => {
+    if (!inView) return
+    let start = 0
+    const step = target / 40
+    const timer = setInterval(() => {
+      start += step
+      if (start >= target) { setCount(target); clearInterval(timer) }
+      else setCount(Math.floor(start))
+    }, 30)
+    return () => clearInterval(timer)
+  }, [inView, target])
+
+  return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>
+}
+
+function TrustStrip() {
+  const stats = [
+    { value: 847000, suffix: "+", label: "transactions DVF analysées" },
+    { value: 75, suffix: " dépt", label: "couverts en France" },
+    { value: 24, suffix: " mois", label: "d'historique glissant" },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
+      className="w-full border-y border-slate-800/60 bg-slate-900/30 backdrop-blur-sm"
+    >
+      <div className="mx-auto max-w-2xl px-4 py-4 flex flex-col sm:flex-row items-center justify-around gap-4 sm:gap-0">
+        {stats.map((s, i) => (
+          <div key={s.label} className="flex flex-col items-center gap-0.5">
+            <span className="text-xl font-semibold tabular-nums text-white">
+              <AnimatedCounter target={s.value} suffix={s.suffix} />
+            </span>
+            <span className="text-xs text-slate-500">{s.label}</span>
+            {i < stats.length - 1 && (
+              <span className="hidden sm:block absolute h-8 w-px bg-slate-800" style={{ position: "static", margin: "0 2rem" }} />
+            )}
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -191,76 +242,91 @@ function VerdictIA({
   const tension = scores.marche.value
   const valeur = scores.localisation.value
 
-  // Verdict: compare valeur score to neutral 75 baseline
-  const delta = Math.round((75 - valeur) * 0.5)
+  const delta = Math.round(Math.abs(75 - valeur) * 0.5)
   const isUnder = valeur >= 75
   const isOver = valeur < 55
   const verdictLabel = isUnder ? "Sous-évalué" : isOver ? "Surévalué" : "Correctement valorisé"
-  const verdictColor = isUnder ? "text-emerald-400" : isOver ? "text-red-400" : "text-blue-400"
-  const verdictBorder = isUnder ? "border-emerald-500/30 bg-emerald-500/5" : isOver ? "border-red-500/30 bg-red-500/5" : "border-blue-500/30 bg-blue-500/5"
-  const deltaLabel = isUnder
-    ? `~${Math.abs(delta)}% sous le marché local`
+  const VerdictIcon = isUnder ? CheckCircle2 : isOver ? XCircle : AlertTriangle
+  const verdictColor = isUnder ? "text-emerald-400" : isOver ? "text-red-400" : "text-amber-400"
+  const verdictBg = isUnder
+    ? "border-emerald-500/30 bg-gradient-to-br from-emerald-950/60 to-slate-900/60"
     : isOver
-    ? `~${Math.abs(delta)}% au-dessus du marché`
+    ? "border-red-500/30 bg-gradient-to-br from-red-950/60 to-slate-900/60"
+    : "border-amber-500/30 bg-gradient-to-br from-amber-950/40 to-slate-900/60"
+  const glowColor = isUnder ? "shadow-emerald-500/10" : isOver ? "shadow-red-500/10" : "shadow-amber-500/10"
+  const deltaLabel = isUnder
+    ? `~${delta}% sous le marché local`
+    : isOver ? `~${delta}% au-dessus du marché`
     : "En ligne avec le marché local"
 
-  // Resale time from tension
   const resale = tension > 80 ? "~30 jours" : tension > 65 ? "~45 jours" : tension > 50 ? "~60 jours" : "> 90 jours"
   const resaleColor = tension > 80 ? "text-emerald-400" : tension > 60 ? "text-amber-400" : "text-red-400"
-
-  // DPE risk
   const dpeRisk = !dpe_classe ? "Inconnu" : ["A","B"].includes(dpe_classe) ? "Faible" : ["C","D"].includes(dpe_classe) ? "Modéré" : "Fort"
   const dpeRiskColor = !dpe_classe ? "text-slate-400" : ["A","B"].includes(dpe_classe) ? "text-emerald-400" : ["C","D"].includes(dpe_classe) ? "text-amber-400" : "text-red-400"
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className={`rounded-xl border p-6 space-y-4 ${verdictBorder}`}
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      className={`rounded-2xl border p-6 space-y-5 shadow-2xl ${verdictBg} ${glowColor}`}
     >
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Verdict IA</div>
-          <div className={`text-2xl font-semibold ${verdictColor}`}>{verdictLabel}</div>
-          <div className="text-sm text-slate-400 mt-1">{deltaLabel}</div>
+        <div className="flex items-center gap-3">
+          <motion.div
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.15, type: "spring", stiffness: 200 }}
+          >
+            <VerdictIcon className={`h-8 w-8 ${verdictColor}`} strokeWidth={1.5} />
+          </motion.div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-0.5">Verdict IA</div>
+            <motion.div
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.2 }}
+              className={`text-2xl sm:text-3xl font-semibold ${verdictColor}`}
+            >
+              {verdictLabel}
+            </motion.div>
+            <div className="text-sm text-slate-400 mt-0.5">{deltaLabel}</div>
+          </div>
         </div>
         <span className={`shrink-0 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(confidence)}`}>
-          Confiance {(confidence * 100).toFixed(0)}%
+          <Activity className="h-3 w-3 mr-1" />
+          {(confidence * 100).toFixed(0)}% confiance
         </span>
       </div>
 
-      {/* Gauge bar */}
-      <div className="space-y-1.5">
+      {/* Gauge */}
+      <div className="space-y-2">
         <div className="flex justify-between text-xs text-slate-500">
-          <span>Sous-évalué</span><span>Marché</span><span>Surévalué</span>
+          <span className="text-emerald-500/70">◀ Sous-évalué</span>
+          <span>Marché</span>
+          <span className="text-red-500/70">Surévalué ▶</span>
         </div>
-        <div className="relative h-2 rounded-full bg-gradient-to-r from-emerald-500/40 via-slate-700 to-red-500/40">
+        <div className="relative h-2.5 rounded-full bg-gradient-to-r from-emerald-500/50 via-slate-700 to-red-500/50 overflow-visible">
           <motion.div
-            initial={{ left: "50%" }}
-            animate={{ left: `${Math.max(5, Math.min(95, 100 - valeur))}%` }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="absolute -top-1 h-4 w-1.5 -translate-x-1/2 rounded-full bg-white shadow-lg"
-            style={{ left: `${Math.max(5, Math.min(95, 100 - valeur))}%` }}
+            initial={{ left: "50%", opacity: 0 }}
+            animate={{ left: `${Math.max(4, Math.min(96, 100 - valeur))}%`, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+            className="absolute -top-1 h-4.5 w-2 -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+            style={{ left: `${Math.max(4, Math.min(96, 100 - valeur))}%`, height: "18px" }}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 pt-1 border-t border-slate-800">
-        <div className="space-y-1">
-          <div className="text-xs text-slate-500">Temps de revente estimé</div>
-          <div className={`text-sm font-semibold ${resaleColor}`}>{resale}</div>
-        </div>
-        <div className="space-y-1">
-          <div className="text-xs text-slate-500">Risque DPE</div>
-          <div className={`text-sm font-semibold ${dpeRiskColor}`}>{dpeRisk}</div>
-        </div>
-        <div className="space-y-1">
-          <div className="text-xs text-slate-500">Prix/m² médian</div>
-          <div className="text-sm font-semibold text-slate-300">
-            {formatCurrency(fourchette.prix_m2_median, true)}/m²
+      {/* Bottom stats */}
+      <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-800/60">
+        {[
+          { label: "Délai revente", value: resale, color: resaleColor },
+          { label: "Risque DPE", value: dpeRisk, color: dpeRiskColor },
+          { label: "Prix/m² médian", value: `${formatCurrency(fourchette.prix_m2_median, true)}/m²`, color: "text-slate-200" },
+        ].map((item) => (
+          <div key={item.label} className="space-y-1 text-center">
+            <div className="text-xs text-slate-500">{item.label}</div>
+            <div className={`text-sm font-semibold ${item.color}`}>{item.value}</div>
           </div>
-        </div>
+        ))}
       </div>
     </motion.div>
   )
@@ -636,17 +702,47 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* Hero */}
-      <section ref={heroRef} className="relative flex flex-col items-center justify-center px-4 py-20 sm:py-28 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 h-96 w-96 rounded-full bg-blue-500/5 blur-3xl" />
+      <section ref={heroRef} className="relative flex flex-col items-center justify-center px-4 py-20 sm:py-28 overflow-hidden bg-slate-950">
+        {/* Animated background */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {/* SVG dot grid */}
+          <svg className="absolute inset-0 h-full w-full opacity-[0.03]" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="1" fill="white" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+          {/* Gradient orbs */}
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], opacity: [0.06, 0.1, 0.06] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute left-1/2 top-[-8rem] -translate-x-1/2 h-[36rem] w-[36rem] rounded-full bg-blue-600 blur-3xl"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.04, 0.07, 0.04] }}
+            transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+            className="absolute left-[10%] top-[20%] h-64 w-64 rounded-full bg-indigo-500 blur-3xl"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], opacity: [0.03, 0.06, 0.03] }}
+            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+            className="absolute right-[8%] top-[30%] h-48 w-48 rounded-full bg-blue-400 blur-3xl"
+          />
+          {/* Bottom fade */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent" />
         </div>
 
         <div className="relative w-full max-w-2xl flex flex-col items-center gap-6">
           <motion.span
             initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 text-xs text-slate-400"
+            className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300 backdrop-blur-sm"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block" />
+            <motion.span
+              animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.8, repeat: Infinity }}
+              className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block"
+            />
             Données DVF&nbsp;·&nbsp;France métropolitaine&nbsp;·&nbsp;Open Data
           </motion.span>
 
@@ -747,6 +843,9 @@ export default function HomePage() {
           </motion.form>
         </div>
       </section>
+
+      {/* Trust strip */}
+      <TrustStrip />
 
       {/* Results */}
       <div ref={resultsRef}>
