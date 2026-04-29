@@ -414,6 +414,42 @@ export default function HomePage() {
   const [result, setResult] = useState<EstimationResponse | null>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
 
+  function handleDemo() {
+    setError(null)
+    setResult({
+      request_id: "demo",
+      adresse_geocodee: "10 rue de Rivoli, 75001 Paris",
+      latitude: 48.8566,
+      longitude: 2.3522,
+      geocoding_score: 0.98,
+      fourchette: {
+        min: 487500, median: 610000, max: 742500,
+        prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423,
+      },
+      scores: {
+        localisation: { label: "Valeur marché", value: 78.5, weight: 0.4 },
+        marche: { label: "Tension locale", value: 92.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 80.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 75.0, weight: 0.1 },
+        global: 82.6,
+      },
+      confidence: 0.87,
+      nb_comparables: 17,
+      dpe_classe: "C",
+      dpe_conso: 178,
+      comparables: [
+        { id: "1", adresse: "8 rue de Rivoli", commune: "Paris", date_mutation: "2024-03-15", type_local: "Appartement", surface_reelle_bati: 63, valeur_fonciere: 598000, prix_m2: 9492, distance_metres: 45 },
+        { id: "2", adresse: "14 rue de Rivoli", commune: "Paris", date_mutation: "2024-01-22", type_local: "Appartement", surface_reelle_bati: 71, valeur_fonciere: 645000, prix_m2: 9085, distance_metres: 112 },
+        { id: "3", adresse: "3 rue du Louvre", commune: "Paris", date_mutation: "2023-11-08", type_local: "Appartement", surface_reelle_bati: 58, valeur_fonciere: 562000, prix_m2: 9690, distance_metres: 198 },
+        { id: "4", adresse: "21 rue Saint-Honoré", commune: "Paris", date_mutation: "2024-02-14", type_local: "Appartement", surface_reelle_bati: 69, valeur_fonciere: 598000, prix_m2: 8667, distance_metres: 287 },
+        { id: "5", adresse: "5 rue du Pont-Neuf", commune: "Paris", date_mutation: "2023-12-03", type_local: "Appartement", surface_reelle_bati: 55, valeur_fonciere: 534000, prix_m2: 9709, distance_metres: 342 },
+      ],
+    })
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 100)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -558,6 +594,15 @@ export default function HomePage() {
                 </motion.p>
               )}
             </AnimatePresence>
+
+            {/* Demo */}
+            <button
+              type="button"
+              onClick={handleDemo}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800/40 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+            >
+              Voir la démo — Paris 1er (sans backend)
+            </button>
 
             {/* Submit */}
             <button

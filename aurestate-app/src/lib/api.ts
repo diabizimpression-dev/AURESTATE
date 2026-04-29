@@ -37,6 +37,11 @@ export interface Comparable {
 export interface EstimationResponse {
   request_id: string
   adresse_geocodee: string
+  latitude?: number
+  longitude?: number
+  geocoding_score?: number
+  dpe_classe?: string
+  dpe_conso?: number
   fourchette: Fourchette
   scores: {
     localisation: ScoreDetail
@@ -48,8 +53,6 @@ export interface EstimationResponse {
   confidence: number
   nb_comparables: number
   comparables: Comparable[]
-  dpe_classe?: string | null
-  dpe_conso?: number | null
 }
 
 export async function fetchEstimation(
