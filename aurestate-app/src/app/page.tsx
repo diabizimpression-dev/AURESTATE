@@ -858,11 +858,86 @@ export default function HomePage() {
         </AnimatePresence>
       </div>
 
+      {/* Why AURESTATE section */}
+      {!result && (
+        <section className="px-4 py-14 border-t border-slate-800/50">
+          <div className="mx-auto max-w-3xl space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.5 }}
+              className="text-center space-y-2"
+            >
+              <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest">Pourquoi AURESTATE</div>
+              <h2 className="text-2xl font-light text-white">L&apos;alternative aux plateformes d&apos;annonces</h2>
+              <p className="text-slate-400 text-sm max-w-xl mx-auto">
+                Pas d&apos;agents, pas de placement payant, pas d&apos;annonces. Uniquement des données DVF publiques et un scoring explicable.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.6 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+            >
+              {[
+                {
+                  icon: <ShieldCheck className="h-5 w-5 text-emerald-400" />,
+                  title: "Données auditables",
+                  desc: "Toutes nos estimations sont basées sur les transactions DVF de la DGFIP. Vérifiables, sans filtre.",
+                  vs: "vs estimations d'agents non sourcées",
+                },
+                {
+                  icon: <Target className="h-5 w-5 text-blue-400" />,
+                  title: "Scoring 4D explicable",
+                  desc: "Valeur marché, tension locale, liquidité, risque DPE — chaque score est décomposé et compréhensible.",
+                  vs: "vs prix affiché opaque",
+                },
+                {
+                  icon: <Sparkles className="h-5 w-5 text-amber-400" />,
+                  title: "Zéro placement payant",
+                  desc: "Aucun bien ne remonte en tête parce qu'un agent a payé. Le classement reflète uniquement les données.",
+                  vs: "vs portails ads-driven",
+                },
+              ].map((f) => (
+                <div key={f.title} className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    {f.icon}
+                    <span className="text-sm font-semibold text-slate-100">{f.title}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">{f.desc}</p>
+                  <span className="inline-block text-xs text-slate-600 italic">{f.vs}</span>
+                </div>
+              ))}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              className="flex flex-wrap justify-center gap-3"
+            >
+              <a href="/quartier"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                <MapPin className="h-4 w-4 text-blue-400" />
+                Explorer les quartiers Paris
+              </a>
+              <a href="/methode"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                <BarChart3 className="h-4 w-4 text-slate-400" />
+                Notre méthodologie
+              </a>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-800 py-6 px-4">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
           <span>AURESTATE&nbsp;·&nbsp;Données DVF publiques&nbsp;·&nbsp;RGPD compliant</span>
-          <a href="/docs" className="text-slate-500 hover:text-slate-300 transition-colors">API Docs</a>
+          <div className="flex gap-4">
+            <a href="/quartier" className="text-slate-500 hover:text-slate-300 transition-colors">Quartiers</a>
+            <a href="/methode" className="text-slate-500 hover:text-slate-300 transition-colors">Méthode</a>
+            <a href="/docs" className="text-slate-500 hover:text-slate-300 transition-colors">API</a>
+          </div>
         </div>
       </footer>
     </div>
