@@ -309,6 +309,7 @@ async def create_estimation(
         created_at=datetime.now(timezone.utc),
         dpe_classe=dpe_classe,
         dpe_conso=dpe_conso,
+        tendance_pct=tendance_pct,
     )
 
     # ── Mise en cache ─────────────────────────────────────────────────────────
