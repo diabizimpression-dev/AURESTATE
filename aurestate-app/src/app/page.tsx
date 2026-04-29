@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   MapPin, Home, Ruler, Loader2, TrendingUp, TrendingDown,
   BarChart3, Building2, Calculator, Minus, ArrowUp, ArrowDown,
+  ChevronUp, Sparkles, Target, ShieldCheck,
 } from "lucide-react"
 import {
   fetchEstimation,
@@ -229,6 +230,22 @@ function VerdictIA({
         </span>
       </div>
 
+      {/* Gauge bar */}
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-xs text-slate-500">
+          <span>Sous-évalué</span><span>Marché</span><span>Surévalué</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-gradient-to-r from-emerald-500/40 via-slate-700 to-red-500/40">
+          <motion.div
+            initial={{ left: "50%" }}
+            animate={{ left: `${Math.max(5, Math.min(95, 100 - valeur))}%` }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="absolute -top-1 h-4 w-1.5 -translate-x-1/2 rounded-full bg-white shadow-lg"
+            style={{ left: `${Math.max(5, Math.min(95, 100 - valeur))}%` }}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-3 pt-1 border-t border-slate-800">
         <div className="space-y-1">
           <div className="text-xs text-slate-500">Temps de revente estimé</div>
@@ -239,9 +256,9 @@ function VerdictIA({
           <div className={`text-sm font-semibold ${dpeRiskColor}`}>{dpeRisk}</div>
         </div>
         <div className="space-y-1">
-          <div className="text-xs text-slate-500">Fourchette indicative</div>
+          <div className="text-xs text-slate-500">Prix/m² médian</div>
           <div className="text-sm font-semibold text-slate-300">
-            {formatCurrency(fourchette.prix_m2_min, true)} – {formatCurrency(fourchette.prix_m2_max, true)}/m²
+            {formatCurrency(fourchette.prix_m2_median, true)}/m²
           </div>
         </div>
       </div>
@@ -391,18 +408,36 @@ function ComparablesTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((c, i) => (
-            <tr key={c.id} className={`border-b border-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/20" : ""}`}>
-              <td className="py-2.5 pr-4 text-slate-300">{truncate(c.adresse || c.commune, 32)}</td>
-              <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">{c.surface_reelle_bati}&nbsp;m²</td>
-              <td className="py-2.5 px-4 text-right tabular-nums text-slate-300">{formatCurrency(c.prix_m2)}</td>
-              <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">
-                {c.distance_metres < 1000 ? `${c.distance_metres.toFixed(0)} m` : `${(c.distance_metres / 1000).toFixed(1)} km`}
-              </td>
-              <td className="py-2.5 pl-4 text-right text-slate-500">{formatDateFr(c.date_mutation)}</td>
-            </tr>
-          ))}
+          {sorted.map((c, i) => {
+            const median = sorted.reduce((s, x) => s + x.prix_m2, 0) / sorted.length
+            const pct = Math.min(100, (c.prix_m2 / median) * 100)
+            const isBelow = c.prix_m2 < median * 0.97
+            const isAbove = c.prix_m2 > median * 1.1
+            return (
+              <tr key={c.id} className={`border-b border-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/20" : ""}`}>
+                <td className="py-2.5 pr-4 text-slate-300">{truncate(c.adresse || c.commune, 28)}</td>
+                <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">{c.surface_reelle_bati}&nbsp;m²</td>
+                <td className="py-2.5 px-4 text-right tabular-nums">
+                  <div className="flex items-center justify-end gap-2">
+                    <div className="w-12 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className={`h-full rounded-full ${isBelow ? "bg-emerald-500" : isAbove ? "bg-red-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                    <span className={isBelow ? "text-emerald-400" : isAbove ? "text-red-400" : "text-slate-300"}>
+                      {formatCurrency(c.prix_m2)}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">
+                  {c.distance_metres < 1000 ? `${c.distance_metres.toFixed(0)} m` : `${(c.distance_metres / 1000).toFixed(1)} km`}
+                </td>
+                <td className="py-2.5 pl-4 text-right text-slate-500">{formatDateFr(c.date_mutation)}</td>
+              </tr>
+            )
+          })}
         </tbody>
+        <tfoot>
+          <tr><td colSpan={5} className="pt-3 text-xs text-slate-600">Source : DVF · Direction Générale des Finances Publiques · data.gouv.fr</td></tr>
+        </tfoot>
       </table>
     </motion.div>
   )
@@ -516,24 +551,47 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<EstimationResponse | null>(null)
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
 
-  function handleDemo() {
+  const scrollToTop = useCallback(() => {
+    setResult(null)
+    heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  function handleDemo(filter?: string | null) {
     setError(null)
+    const isSousEvalue = filter === "sous-evalue"
+    const isFortPotentiel = filter === "fort-potentiel"
     setResult({
       request_id: "demo",
-      adresse_geocodee: "10 rue de Rivoli, 75001 Paris",
+      adresse_geocodee: isSousEvalue ? "42 rue Oberkampf, 75011 Paris" : isFortPotentiel ? "7 rue de la Roquette, 75011 Paris" : "10 rue de Rivoli, 75001 Paris",
       latitude: 48.8566, longitude: 2.3522, geocoding_score: 0.98,
-      fourchette: { min: 487500, median: 610000, max: 742500, prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423 },
-      scores: {
+      fourchette: isSousEvalue
+        ? { min: 420000, median: 490000, max: 580000, prix_m2_min: 6500, prix_m2_median: 7538, prix_m2_max: 8923 }
+        : { min: 487500, median: 610000, max: 742500, prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423 },
+      scores: isSousEvalue ? {
+        localisation: { label: "Valeur marché", value: 91.0, weight: 0.4 },
+        marche: { label: "Tension locale", value: 85.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 75.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 90.0, weight: 0.1 },
+        global: 87.1,
+      } : filter === "risque-faible" ? {
+        localisation: { label: "Valeur marché", value: 72.0, weight: 0.4 },
+        marche: { label: "Tension locale", value: 78.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 88.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 95.0, weight: 0.1 },
+        global: 79.3,
+      } : {
         localisation: { label: "Valeur marché", value: 78.5, weight: 0.4 },
         marche: { label: "Tension locale", value: 92.0, weight: 0.3 },
         bien: { label: "Liquidité", value: 80.0, weight: 0.2 },
         dpe: { label: "Risque énergétique", value: 75.0, weight: 0.1 },
         global: 82.6,
       },
-      confidence: 0.87, nb_comparables: 17,
-      dpe_classe: "C", dpe_conso: 178,
+      confidence: isSousEvalue ? 0.92 : 0.87, nb_comparables: isSousEvalue ? 22 : 17,
+      dpe_classe: filter === "risque-faible" ? "B" : "C", dpe_conso: filter === "risque-faible" ? 89 : 178,
       comparables: [
         { id: "1", adresse: "8 rue de Rivoli", commune: "Paris", date_mutation: "2024-03-15", type_local: "Appartement", surface_reelle_bati: 63, valeur_fonciere: 598000, prix_m2: 9492, distance_metres: 45 },
         { id: "2", adresse: "14 rue de Rivoli", commune: "Paris", date_mutation: "2024-01-22", type_local: "Appartement", surface_reelle_bati: 71, valeur_fonciere: 645000, prix_m2: 9085, distance_metres: 112 },
@@ -563,8 +621,22 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      {/* Sticky back button */}
+      <AnimatePresence>
+        {result && (
+          <motion.button
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 backdrop-blur px-4 py-2.5 text-sm font-medium text-slate-300 shadow-xl transition hover:bg-slate-800 hover:text-white"
+          >
+            <ChevronUp className="h-4 w-4" />
+            Nouvelle estimation
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Hero */}
-      <section className="relative flex flex-col items-center justify-center px-4 py-20 sm:py-28 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <section ref={heroRef} className="relative flex flex-col items-center justify-center px-4 py-20 sm:py-28 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute left-1/2 top-0 -translate-x-1/2 h-96 w-96 rounded-full bg-blue-500/5 blur-3xl" />
         </div>
@@ -623,6 +695,29 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* Smart filter chips */}
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { id: "sous-evalue", label: "Sous-évalué", icon: <Sparkles className="h-3 w-3" />, color: "emerald" },
+                { id: "fort-potentiel", label: "Fort potentiel", icon: <Target className="h-3 w-3" />, color: "blue" },
+                { id: "risque-faible", label: "Risque faible", icon: <ShieldCheck className="h-3 w-3" />, color: "amber" },
+              ].map((f) => (
+                <button
+                  key={f.id} type="button"
+                  onClick={() => setActiveFilter(activeFilter === f.id ? null : f.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    activeFilter === f.id
+                      ? f.color === "emerald" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
+                        : f.color === "blue" ? "border-blue-500/60 bg-blue-500/15 text-blue-400"
+                        : "border-amber-500/60 bg-amber-500/15 text-amber-400"
+                      : "border-slate-700 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  {f.icon}{f.label}
+                </button>
+              ))}
+            </div>
+
             <AnimatePresence>
               {error && (
                 <motion.p key="error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -631,7 +726,7 @@ export default function HomePage() {
               )}
             </AnimatePresence>
 
-            <button type="button" onClick={handleDemo}
+            <button type="button" onClick={() => handleDemo(activeFilter)}
               className="w-full rounded-xl border border-slate-700 bg-slate-800/40 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
             >
               Voir la démo — Paris 1er (sans backend)
