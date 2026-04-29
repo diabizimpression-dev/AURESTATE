@@ -35,6 +35,13 @@ function confidenceColor(confidence: number): string {
   return "text-red-400 bg-red-400/10 border-red-500/30"
 }
 
+function dpeBadgeColor(classe: string): string {
+  if (classe === "A" || classe === "B") return "bg-green-600"
+  if (classe === "C" || classe === "D") return "bg-yellow-500"
+  if (classe === "E") return "bg-orange-500"
+  return "bg-red-600"
+}
+
 function scoreColor(value: number): string {
   if (value > 70) return "bg-emerald-500"
   if (value > 50) return "bg-amber-500"
@@ -244,8 +251,41 @@ function ComparablesTable({
   )
 }
 
+function DpeBadge({
+  classe,
+  conso,
+  delay,
+}: {
+  classe: string
+  conso?: number | null
+  delay: number
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay }}
+      className="inline-flex items-center gap-2"
+    >
+      <span
+        className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold text-white ${dpeBadgeColor(classe)}`}
+      >
+        {classe}
+      </span>
+      <span className="text-sm text-slate-300">
+        DPE&nbsp;: {classe}
+        {conso != null && (
+          <span className="text-slate-400">
+            &nbsp;&middot;&nbsp;{Math.round(conso)}&nbsp;kWh/m²/an
+          </span>
+        )}
+      </span>
+    </motion.div>
+  )
+}
+
 function ResultsSection({ data }: { data: EstimationResponse }) {
-  const { fourchette, scores, confidence, nb_comparables, comparables } = data
+  const { fourchette, scores, confidence, nb_comparables, comparables, dpe_classe, dpe_conso } = data
 
   return (
     <motion.section
@@ -296,6 +336,12 @@ function ResultsSection({ data }: { data: EstimationResponse }) {
             delay={0.15}
           />
         </div>
+
+        {dpe_classe && (
+          <div className="pt-1 border-t border-slate-800">
+            <DpeBadge classe={dpe_classe} conso={dpe_conso} delay={0.2} />
+          </div>
+        )}
       </div>
 
       {/* ── B: Scores 4D ──────────────────────────────────────────────── */}

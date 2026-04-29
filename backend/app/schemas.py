@@ -101,3 +101,5 @@ class EstimationResponse(BaseModel):
     nb_comparables: int
     comparables: List[ComparableTransaction]
     created_at: datetime
+    dpe_classe: Optional[str] = None
+    dpe_conso: Optional[float] = None

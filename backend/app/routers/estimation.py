@@ -167,11 +167,46 @@ async def create_estimation(
         prix_m2_max=round(p_max, 0),
     )
 
+    # ── Requête DPE le plus proche ────────────────────────────────────────────
+    code_postal_geo = req.adresse  # utilisé comme hint ; on extrait depuis les comparables
+    # Priorité : code_postal du premier comparable (même zone géographique)
+    code_postal_lookup = comparables[0].code_postal if comparables else None
+
+    dpe_classe: Optional[str] = None
+    dpe_conso: Optional[float] = None
+
+    if code_postal_lookup:
+        dpe_sql = text("""
+            SELECT classe_energie, valeur_conso_ep
+            FROM dpe
+            WHERE code_postal = :code_postal
+              AND date_expiration >= NOW()
+              AND classe_energie IS NOT NULL
+              AND geom IS NOT NULL
+            ORDER BY ST_Distance(
+                geom::geography,
+                ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+            )
+            LIMIT 1
+        """)
+        dpe_result = await db.execute(dpe_sql, {
+            "code_postal": code_postal_lookup,
+            "lat": lat,
+            "lng": lng,
+        })
+        dpe_row = dpe_result.mappings().first()
+        if dpe_row:
+            dpe_classe = dpe_row["classe_energie"]
+            dpe_conso = float(dpe_row["valeur_conso_ep"]) if dpe_row["valeur_conso_ep"] is not None else None
+            log.info("dpe.found", classe=dpe_classe, conso=dpe_conso, code_postal=code_postal_lookup)
+        else:
+            log.info("dpe.not_found", code_postal=code_postal_lookup)
+
     scores = _compute_scores(
         prix_m2_bien=p_median,
         prix_m2_median=p_median,
         nb_comparables=n,
-        classe_dpe=None,
+        classe_dpe=dpe_classe,
     )
 
     confidence = min(1.0, n / 10.0)
@@ -200,6 +235,8 @@ async def create_estimation(
         nb_comparables=n,
         comparables=comparables[:5],
         created_at=datetime.now(timezone.utc),
+        dpe_classe=dpe_classe,
+        dpe_conso=dpe_conso,
     )
 
     # ── Mise en cache ─────────────────────────────────────────────────────────

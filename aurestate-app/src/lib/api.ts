@@ -48,6 +48,8 @@ export interface EstimationResponse {
   confidence: number
   nb_comparables: number
   comparables: Comparable[]
+  dpe_classe?: string | null
+  dpe_conso?: number | null
 }
 
 export async function fetchEstimation(
