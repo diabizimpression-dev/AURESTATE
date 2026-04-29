@@ -6,7 +6,7 @@ import {
   MapPin, Home, Ruler, Loader2, TrendingUp, TrendingDown,
   BarChart3, Building2, Calculator, Minus, ArrowUp, ArrowDown,
   ChevronUp, Sparkles, Target, ShieldCheck, CheckCircle2, AlertTriangle, XCircle,
-  Activity,
+  Activity, ArrowRight,
 } from "lucide-react"
 import {
   fetchEstimation,
@@ -608,6 +608,74 @@ function ResultsSection({ data }: { data: EstimationResponse }) {
   )
 }
 
+// ─── Marchés en vue (like realestate.com.au suburb highlights) ───────────────
+
+const MARCHES_HOT = [
+  { code: "75011", nom: "11ème · Popincourt", prix_m2: 11800, tendance: 3.8, score: 90, badge: "🔥 Très demandé" },
+  { code: "75019", nom: "19ème · Buttes-Chaumont", prix_m2: 9500, tendance: 4.8, score: 92, badge: "📈 Forte hausse" },
+  { code: "75010", nom: "10ème · Entrepôt", prix_m2: 11200, tendance: 4.1, score: 88, badge: "⚡ Dynamique" },
+  { code: "75013", nom: "13ème · Gobelins", prix_m2: 10500, tendance: 2.9, score: 84, badge: "💚 Bon DPE" },
+  { code: "75012", nom: "12ème · Reuilly", prix_m2: 10800, tendance: 3.5, score: 87, badge: "🏆 Top rapport" },
+]
+
+function MarchesSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }}
+      className="w-full py-10 px-4 border-t border-slate-800/40"
+    >
+      <div className="mx-auto max-w-3xl">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Marchés en vue</div>
+            <h2 className="text-lg font-light text-white">Arrondissements les plus actifs</h2>
+          </div>
+          <a href="/quartier" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition-colors">
+            Voir tous <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+
+        {/* Horizontal scroll cards */}
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+          {MARCHES_HOT.map((m, i) => (
+            <motion.a
+              key={m.code}
+              href="/quartier"
+              initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.5 + i * 0.07 }}
+              className="shrink-0 snap-start w-48 rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3 hover:border-blue-500/40 hover:bg-slate-800/60 transition-all cursor-pointer"
+            >
+              <span className="text-xs text-slate-500">{m.badge}</span>
+              <div>
+                <div className="text-sm font-semibold text-slate-100 leading-tight">{m.nom}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Score marché</div>
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-base font-semibold text-white">{new Intl.NumberFormat("fr-FR").format(m.prix_m2)} €</div>
+                  <div className="text-xs text-slate-500">/m² médian</div>
+                </div>
+                <div className={`text-sm font-bold flex items-center gap-0.5 ${m.tendance >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  +{m.tendance}%
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Tension</span><span className="text-slate-400">{m.score}/100</span>
+                </div>
+                <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+                  <div className={`h-full rounded-full ${m.score >= 88 ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${m.score}%` }} />
+                </div>
+              </div>
+            </motion.a>
+          ))}
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -618,6 +686,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<EstimationResponse | null>(null)
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [heroTab, setHeroTab] = useState<"estimer" | "quartier">("estimer")
   const resultsRef = useRef<HTMLDivElement>(null)
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -754,9 +823,51 @@ export default function HomePage() {
             <p className="mt-3 text-slate-400 text-base sm:text-lg">Votre assistant décisionnel immobilier — données réelles, scores explicables</p>
           </motion.div>
 
+          {/* Tabs — like realestate.com.au (Acheter/Louer/Vendu) */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.08 }}
+            className="flex gap-1 rounded-xl border border-slate-700/60 bg-slate-900/60 backdrop-blur-sm p-1 w-full"
+          >
+            {[
+              { key: "estimer" as const, label: "Estimer un bien", icon: <Home className="h-3.5 w-3.5" /> },
+              { key: "quartier" as const, label: "Explorer un quartier", icon: <MapPin className="h-3.5 w-3.5" /> },
+            ].map(t => (
+              <button
+                key={t.key} type="button"
+                onClick={() => setHeroTab(t.key)}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+                  heroTab === t.key
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {t.icon}{t.label}
+              </button>
+            ))}
+          </motion.div>
+
+          {/* Quartier tab content */}
+          <AnimatePresence mode="wait">
+          {heroTab === "quartier" ? (
+            <motion.div
+              key="quartier-tab"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-3"
+            >
+              <p className="text-sm text-slate-400 text-center">Explorez les 20 arrondissements parisiens — prix DVF, score tension, délais de vente.</p>
+              <a href="/quartier"
+                className="block w-full rounded-xl bg-slate-800 border border-slate-700 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+              >
+                Voir les profils de quartier →
+              </a>
+            </motion.div>
+          ) : (
           <motion.form
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
-            onSubmit={handleSubmit} className="w-full mt-2 space-y-3"
+            key="estimer-tab"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            onSubmit={handleSubmit} className="w-full space-y-3"
           >
             <div className="relative">
               <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -841,6 +952,8 @@ export default function HomePage() {
               ) : "Estimer"}
             </button>
           </motion.form>
+          )}
+          </AnimatePresence>
         </div>
       </section>
 
@@ -857,6 +970,9 @@ export default function HomePage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Marchés en vue */}
+      {!result && <MarchesSection />}
 
       {/* Why AURESTATE section */}
       {!result && (
@@ -929,14 +1045,48 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-800 py-6 px-4">
-        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
-          <span>AURESTATE&nbsp;·&nbsp;Données DVF publiques&nbsp;·&nbsp;RGPD compliant</span>
+      {/* Footer — SEO links like realestate.com.au */}
+      <footer className="mt-auto border-t border-slate-800 bg-slate-900/30">
+        {/* SEO link grid */}
+        <div className="mx-auto max-w-5xl px-4 py-10 grid grid-cols-2 sm:grid-cols-4 gap-6 border-b border-slate-800">
+          {[
+            {
+              title: "Arrondissements",
+              links: ["Immobilier 11ème", "Immobilier 19ème", "Immobilier 10ème", "Immobilier 13ème", "Immobilier 15ème", "Voir tous →"],
+              hrefs: ["/quartier","/quartier","/quartier","/quartier","/quartier","/quartier"],
+            },
+            {
+              title: "Outils",
+              links: ["Estimation DVF", "Score de quartier", "Simulation prêt", "Scoring 4D"],
+              hrefs: ["/","/quartier","/","/#scoring"],
+            },
+            {
+              title: "Comprendre",
+              links: ["Notre méthode", "C'est quoi le DVF ?", "Scoring énergétique", "API publique"],
+              hrefs: ["/methode","/methode","/methode","/docs"],
+            },
+            {
+              title: "Données",
+              links: ["DVF DGFIP", "ADEME DPE", "API Adresse", "Open Data"],
+              hrefs: ["/methode","/methode","/methode","/docs"],
+            },
+          ].map(col => (
+            <div key={col.title} className="space-y-2">
+              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{col.title}</div>
+              {col.links.map((l, i) => (
+                <a key={l} href={col.hrefs[i]} className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">{l}</a>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom bar */}
+        <div className="mx-auto max-w-5xl px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
+          <span>AURESTATE&nbsp;·&nbsp;Données DVF publiques&nbsp;·&nbsp;RGPD compliant&nbsp;·&nbsp;Pas de placement payant</span>
           <div className="flex gap-4">
-            <a href="/quartier" className="text-slate-500 hover:text-slate-300 transition-colors">Quartiers</a>
-            <a href="/methode" className="text-slate-500 hover:text-slate-300 transition-colors">Méthode</a>
-            <a href="/docs" className="text-slate-500 hover:text-slate-300 transition-colors">API</a>
+            <a href="/quartier" className="hover:text-slate-400 transition-colors">Quartiers</a>
+            <a href="/methode" className="hover:text-slate-400 transition-colors">Méthode</a>
+            <a href="/docs" className="hover:text-slate-400 transition-colors">API</a>
           </div>
         </div>
       </footer>
