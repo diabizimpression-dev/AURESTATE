@@ -17,9 +17,13 @@ export interface Fourchette {
   min: number
   median: number
   max: number
+  p25?: number
+  p75?: number
   prix_m2_min: number
   prix_m2_median: number
   prix_m2_max: number
+  prix_m2_p25?: number
+  prix_m2_p75?: number
 }
 
 export interface Comparable {

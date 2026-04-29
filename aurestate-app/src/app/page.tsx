@@ -569,8 +569,8 @@ export default function HomePage() {
       adresse_geocodee: isSousEvalue ? "42 rue Oberkampf, 75011 Paris" : isFortPotentiel ? "7 rue de la Roquette, 75011 Paris" : "10 rue de Rivoli, 75001 Paris",
       latitude: 48.8566, longitude: 2.3522, geocoding_score: 0.98,
       fourchette: isSousEvalue
-        ? { min: 420000, median: 490000, max: 580000, prix_m2_min: 6500, prix_m2_median: 7538, prix_m2_max: 8923 }
-        : { min: 487500, median: 610000, max: 742500, prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423 },
+        ? { min: 420000, median: 490000, max: 580000, p25: 455000, p75: 535000, prix_m2_min: 6500, prix_m2_median: 7538, prix_m2_max: 8923, prix_m2_p25: 7000, prix_m2_p75: 8231 }
+        : { min: 487500, median: 610000, max: 742500, p25: 548000, p75: 676000, prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423, prix_m2_p25: 8431, prix_m2_p75: 10400 },
       scores: isSousEvalue ? {
         localisation: { label: "Valeur marché", value: 91.0, weight: 0.4 },
         marche: { label: "Tension locale", value: 85.0, weight: 0.3 },
