@@ -145,10 +145,55 @@ async def create_estimation(
     rows = result.mappings().all()
 
     if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Aucun comparable trouvé dans un rayon de 500m sur 24 mois. Zone insuffisamment documentée.",
-        )
+        # Retry with a wider 1000m radius before giving up
+        sql_wide = text("""
+            SELECT
+                id::text,
+                adresse_complete AS adresse,
+                code_postal,
+                nom_commune AS commune,
+                date_mutation,
+                type_local,
+                surface_bati AS surface_reelle_bati,
+                nombre_pieces AS nombre_pieces_principales,
+                valeur_fonciere,
+                prix_m2,
+                ST_Y(geom) AS latitude,
+                ST_X(geom) AS longitude,
+                ROUND(
+                    ST_Distance(
+                        ST_Transform(geom, 2154),
+                        ST_Transform(ST_SetSRID(ST_MakePoint(:lng, :lat), 4326), 2154)
+                    )::numeric, 1
+                ) AS distance_metres
+            FROM transactions
+            WHERE
+                is_outlier = FALSE
+                AND type_local = :type_local
+                AND prix_m2 IS NOT NULL
+                AND date_mutation >= NOW() - INTERVAL '24 months'
+                AND ST_DWithin(
+                    geom::geography,
+                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+                    1000
+                )
+                AND surface_bati BETWEEN :surface_min AND :surface_max
+            ORDER BY distance_metres ASC
+            LIMIT 20
+        """)
+        result2 = await db.execute(sql_wide, {
+            "lat": lat,
+            "lng": lng,
+            "type_local": req.type_local,
+            "surface_min": req.surface_bati * 0.6,
+            "surface_max": req.surface_bati * 1.4,
+        })
+        rows = result2.mappings().all()
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Aucun comparable trouvé dans un rayon de 1000m sur 24 mois. Zone insuffisamment documentée.",
+            )
 
     comparables: List[ComparableTransaction] = [ComparableTransaction(**dict(r)) for r in rows]
     prix_m2_values = [c.prix_m2 for c in comparables]
@@ -157,14 +202,20 @@ async def create_estimation(
     p_min = prix_m2_values[0]
     p_max = prix_m2_values[-1]
     p_median = prix_m2_values[n // 2]
+    p25 = prix_m2_values[n // 4]
+    p75 = prix_m2_values[(n * 3) // 4]
 
     fourchette = PrixFourchette(
         min=round(p_min * req.surface_bati, 0),
         median=round(p_median * req.surface_bati, 0),
         max=round(p_max * req.surface_bati, 0),
+        p25=round(p25 * req.surface_bati, 0),
+        p75=round(p75 * req.surface_bati, 0),
         prix_m2_min=round(p_min, 0),
         prix_m2_median=round(p_median, 0),
         prix_m2_max=round(p_max, 0),
+        prix_m2_p25=round(p25, 0),
+        prix_m2_p75=round(p75, 0),
     )
 
     # ── Requête DPE le plus proche ────────────────────────────────────────────
@@ -202,8 +253,29 @@ async def create_estimation(
         else:
             log.info("dpe.not_found", code_postal=code_postal_lookup)
 
+    # Compute market trend: compare average prix_m2 of last 6 months vs previous 6 months
+    now = datetime.now(timezone.utc)
+    recent_prices = [
+        c.prix_m2 for c in comparables
+        if (now - c.date_mutation.replace(tzinfo=timezone.utc)).days <= 180
+    ]
+    older_prices = [
+        c.prix_m2 for c in comparables
+        if 180 < (now - c.date_mutation.replace(tzinfo=timezone.utc)).days <= 365
+    ]
+    if recent_prices and older_prices:
+        avg_recent = sum(recent_prices) / len(recent_prices)
+        avg_older = sum(older_prices) / len(older_prices)
+        tendance_pct: Optional[float] = round(
+            (avg_recent - avg_older) / avg_older * 100, 2
+        )
+    else:
+        tendance_pct = None
+
+    # prix_m2_bien = p25 (lower-quartile "good deal" reference) vs p_median benchmark
+    # When p25 < p_median the score < 100, reflecting that median is above the bargain threshold
     scores = _compute_scores(
-        prix_m2_bien=p_median,
+        prix_m2_bien=p25,
         prix_m2_median=p_median,
         nb_comparables=n,
         classe_dpe=dpe_classe,

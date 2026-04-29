@@ -83,10 +83,14 @@ class PrixFourchette(BaseModel):
     min: float
     median: float
     max: float
+    p25: float
+    p75: float
     unite: str = "EUR"
     prix_m2_min: float
     prix_m2_median: float
     prix_m2_max: float
+    prix_m2_p25: float
+    prix_m2_p75: float
 
 
 class EstimationResponse(BaseModel):
@@ -103,3 +107,4 @@ class EstimationResponse(BaseModel):
     created_at: datetime
     dpe_classe: Optional[str] = None
     dpe_conso: Optional[float] = None
+    tendance_pct: Optional[float] = None
