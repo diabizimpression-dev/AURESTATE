@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
+import Link from "next/link"
 import { Home, Building2, MapPin, Calendar, TrendingUp, TrendingDown, Eye } from "lucide-react"
 
 // Rotating Unsplash Paris apartment photos (stable IDs)
@@ -175,10 +176,10 @@ export default function VenduPage() {
                       <Calendar className="h-3.5 w-3.5" />
                       {fmtDate(t.date)}
                     </div>
-                    <button className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                    <Link href={`/bien/${t.id}`} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
                       <Eye className="h-3.5 w-3.5" />
-                      Estimer similaire
-                    </button>
+                      Voir détail
+                    </Link>
                   </div>
                 </div>
               </motion.div>
