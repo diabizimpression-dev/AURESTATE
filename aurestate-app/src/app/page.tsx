@@ -1,0 +1,1331 @@
+"use client"
+
+import { useState, useRef, useCallback, useEffect } from "react"
+import { motion, AnimatePresence, useInView } from "framer-motion"
+import {
+  MapPin, Home, Ruler, Loader2, TrendingUp, TrendingDown,
+  BarChart3, Building2, Calculator, Minus, ArrowUp, ArrowDown,
+  ChevronUp, Sparkles, Target, ShieldCheck, CheckCircle2, AlertTriangle, XCircle,
+  Activity, ArrowRight, Euro,
+} from "lucide-react"
+import {
+  fetchEstimation,
+  type EstimationRequest,
+  type EstimationResponse,
+  type Comparable,
+} from "@/lib/api"
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function formatCurrency(n: number, compact = false): string {
+  if (compact && n >= 1000000)
+    return (n / 1000000).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " M€"
+  if (compact && n >= 1000)
+    return (n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " k€"
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(n)
+}
+
+function formatDateFr(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max) + "…" : str
+}
+
+function confidenceColor(c: number): string {
+  if (c > 0.7) return "text-emerald-400 bg-emerald-400/10 border-emerald-500/30"
+  if (c > 0.4) return "text-amber-400 bg-amber-400/10 border-amber-500/30"
+  return "text-red-400 bg-red-400/10 border-red-500/30"
+}
+
+function dpeBadgeColor(cl: string): string {
+  if (cl === "A" || cl === "B") return "bg-green-600"
+  if (cl === "C" || cl === "D") return "bg-yellow-500"
+  if (cl === "E") return "bg-orange-500"
+  return "bg-red-600"
+}
+
+function scoreColor(v: number): string {
+  if (v > 70) return "bg-emerald-500"
+  if (v > 50) return "bg-amber-500"
+  return "bg-red-500"
+}
+
+function monthlyPayment(principal: number, annualRate: number, years: number): number {
+  const r = annualRate / 12
+  const n = years * 12
+  return (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1)
+}
+
+// ─── Trust strip ─────────────────────────────────────────────────────────────
+
+function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true })
+
+  useEffect(() => {
+    if (!inView) return
+    let start = 0
+    const step = target / 40
+    const timer = setInterval(() => {
+      start += step
+      if (start >= target) { setCount(target); clearInterval(timer) }
+      else setCount(Math.floor(start))
+    }, 30)
+    return () => clearInterval(timer)
+  }, [inView, target])
+
+  return <span ref={ref}>{count.toLocaleString("fr-FR")}{suffix}</span>
+}
+
+function TrustStrip() {
+  const stats = [
+    { value: 847000, suffix: "+", label: "transactions DVF analysées" },
+    { value: 75, suffix: " dépt", label: "couverts en France" },
+    { value: 24, suffix: " mois", label: "d'historique glissant" },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
+      className="w-full border-y border-slate-800/60 bg-slate-900/30 backdrop-blur-sm"
+    >
+      <div className="mx-auto max-w-5xl px-4 py-4 flex flex-col sm:flex-row items-center justify-around gap-4 sm:gap-0">
+        {stats.map((s, i) => (
+          <div key={s.label} className="flex flex-col items-center gap-0.5">
+            <span className="text-xl font-semibold tabular-nums text-white">
+              <AnimatedCounter target={s.value} suffix={s.suffix} />
+            </span>
+            <span className="text-xs text-slate-500">{s.label}</span>
+            {i < stats.length - 1 && (
+              <span className="hidden sm:block absolute h-8 w-px bg-slate-800" style={{ position: "static", margin: "0 2rem" }} />
+            )}
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function PriceCard({
+  label, total, perM2, accent, delay,
+}: { label: string; total: number; perM2: number; accent?: boolean; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay }}
+      className={`flex flex-col gap-2 rounded-xl border p-5 ${accent
+        ? "border-blue-500/50 bg-blue-500/10 ring-1 ring-blue-500/20"
+        : "border-slate-800 bg-slate-900/60"}`}
+    >
+      <span className={`text-xs font-semibold tracking-widest uppercase ${accent ? "text-blue-400" : "text-slate-500"}`}>
+        {label}
+      </span>
+      <span className={`font-light leading-none ${accent ? "text-3xl text-white" : "text-2xl text-slate-200"}`}>
+        {formatCurrency(total)}
+      </span>
+      <span className="text-sm text-slate-500">{formatCurrency(perM2)}&nbsp;/&nbsp;m²</span>
+    </motion.div>
+  )
+}
+
+function PriceRangeBar({
+  min, median, max, delay,
+}: { min: number; median: number; max: number; delay: number }) {
+  const pct = ((median - min) / (max - min)) * 100
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay }}
+      className="space-y-2"
+    >
+      <div className="relative h-2 rounded-full bg-slate-800">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          transition={{ duration: 0.6, delay: delay + 0.1 }}
+          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-slate-600 via-blue-500 to-slate-600"
+        />
+        <motion.div
+          initial={{ left: `${pct}%`, opacity: 0 }}
+          animate={{ left: `${pct}%`, opacity: 1 }}
+          transition={{ delay: delay + 0.4 }}
+          className="absolute -top-1 h-4 w-1 -translate-x-1/2 rounded-full bg-white shadow-lg"
+          style={{ left: `${pct}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-slate-500">
+        <span>{formatCurrency(min, true)}</span>
+        <span className="text-blue-400 font-medium">↑ {formatCurrency(median, true)} médiane</span>
+        <span>{formatCurrency(max, true)}</span>
+      </div>
+    </motion.div>
+  )
+}
+
+function ScoreBar({
+  label, value, weight, delay,
+}: { label: string; value: number; weight: number; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, delay }}
+      className="flex flex-col gap-1.5"
+    >
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-slate-300">{label}</span>
+        <span className="tabular-nums text-slate-400">
+          {value.toFixed(1)}&nbsp;<span className="text-slate-600">/ 100</span>
+          <span className="ml-2 text-xs text-slate-600">(poids&nbsp;{(weight * 100).toFixed(0)}%)</span>
+        </span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.7, delay: delay + 0.1, ease: "easeOut" }}
+          className={`h-full rounded-full ${scoreColor(value)}`}
+        />
+      </div>
+    </motion.div>
+  )
+}
+
+function GlobalScoreRing({ value, delay }: { value: number; delay: number }) {
+  const r = 36, circ = 2 * Math.PI * r, dash = (value / 100) * circ
+  const color = value > 70 ? "#10b981" : value > 50 ? "#f59e0b" : "#ef4444"
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, delay }}
+      className="flex flex-col items-center gap-2"
+    >
+      <div className="relative flex items-center justify-center">
+        <svg width={88} height={88} viewBox="0 0 88 88" className="-rotate-90">
+          <circle cx={44} cy={44} r={r} fill="none" stroke="#1e293b" strokeWidth={8} />
+          <motion.circle
+            cx={44} cy={44} r={r} fill="none" stroke={color} strokeWidth={8}
+            strokeLinecap="round" strokeDasharray={circ}
+            initial={{ strokeDashoffset: circ }}
+            animate={{ strokeDashoffset: circ - dash }}
+            transition={{ duration: 0.9, delay: delay + 0.1, ease: "easeOut" }}
+          />
+        </svg>
+        <span className="absolute text-xl font-semibold text-white">{value.toFixed(0)}</span>
+      </div>
+      <span className="text-sm text-slate-400">Score global</span>
+    </motion.div>
+  )
+}
+
+function VerdictIA({
+  fourchette, scores, dpe_classe, confidence,
+}: {
+  fourchette: EstimationResponse["fourchette"]
+  scores: EstimationResponse["scores"]
+  dpe_classe?: string | null
+  confidence: number
+}) {
+  const tension = scores.marche.value
+  const valeur = scores.localisation.value
+
+  const delta = Math.round(Math.abs(75 - valeur) * 0.5)
+  const isUnder = valeur >= 75
+  const isOver = valeur < 55
+  const verdictLabel = isUnder ? "Sous-évalué" : isOver ? "Surévalué" : "Correctement valorisé"
+  const VerdictIcon = isUnder ? CheckCircle2 : isOver ? XCircle : AlertTriangle
+  const verdictColor = isUnder ? "text-emerald-400" : isOver ? "text-red-400" : "text-amber-400"
+  const verdictBg = isUnder
+    ? "border-emerald-500/30 bg-gradient-to-br from-emerald-950/60 to-slate-900/60"
+    : isOver
+    ? "border-red-500/30 bg-gradient-to-br from-red-950/60 to-slate-900/60"
+    : "border-amber-500/30 bg-gradient-to-br from-amber-950/40 to-slate-900/60"
+  const glowColor = isUnder ? "shadow-emerald-500/10" : isOver ? "shadow-red-500/10" : "shadow-amber-500/10"
+  const deltaLabel = isUnder
+    ? `~${delta}% sous le marché local`
+    : isOver ? `~${delta}% au-dessus du marché`
+    : "En ligne avec le marché local"
+
+  const resale = tension > 80 ? "~30 jours" : tension > 65 ? "~45 jours" : tension > 50 ? "~60 jours" : "> 90 jours"
+  const resaleColor = tension > 80 ? "text-emerald-400" : tension > 60 ? "text-amber-400" : "text-red-400"
+  const dpeRisk = !dpe_classe ? "Inconnu" : ["A","B"].includes(dpe_classe) ? "Faible" : ["C","D"].includes(dpe_classe) ? "Modéré" : "Fort"
+  const dpeRiskColor = !dpe_classe ? "text-slate-400" : ["A","B"].includes(dpe_classe) ? "text-emerald-400" : ["C","D"].includes(dpe_classe) ? "text-amber-400" : "text-red-400"
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      className={`rounded-2xl border p-6 space-y-5 shadow-2xl ${verdictBg} ${glowColor}`}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <motion.div
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.15, type: "spring", stiffness: 200 }}
+          >
+            <VerdictIcon className={`h-8 w-8 ${verdictColor}`} strokeWidth={1.5} />
+          </motion.div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-0.5">Verdict IA</div>
+            <motion.div
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.2 }}
+              className={`text-2xl sm:text-3xl font-semibold ${verdictColor}`}
+            >
+              {verdictLabel}
+            </motion.div>
+            <div className="text-sm text-slate-400 mt-0.5">{deltaLabel}</div>
+          </div>
+        </div>
+        <span className={`shrink-0 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(confidence)}`}>
+          <Activity className="h-3 w-3 mr-1" />
+          {(confidence * 100).toFixed(0)}% confiance
+        </span>
+      </div>
+
+      {/* Gauge */}
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs text-slate-500">
+          <span className="text-emerald-500/70">◀ Sous-évalué</span>
+          <span>Marché</span>
+          <span className="text-red-500/70">Surévalué ▶</span>
+        </div>
+        <div className="relative h-2.5 rounded-full bg-gradient-to-r from-emerald-500/50 via-slate-700 to-red-500/50 overflow-visible">
+          <motion.div
+            initial={{ left: "50%", opacity: 0 }}
+            animate={{ left: `${Math.max(4, Math.min(96, 100 - valeur))}%`, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+            className="absolute -top-1 h-4.5 w-2 -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+            style={{ left: `${Math.max(4, Math.min(96, 100 - valeur))}%`, height: "18px" }}
+          />
+        </div>
+      </div>
+
+      {/* Bottom stats */}
+      <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-800/60">
+        {[
+          { label: "Délai revente", value: resale, color: resaleColor },
+          { label: "Risque DPE", value: dpeRisk, color: dpeRiskColor },
+          { label: "Prix/m² médian", value: `${formatCurrency(fourchette.prix_m2_median, true)}/m²`, color: "text-slate-200" },
+        ].map((item) => (
+          <div key={item.label} className="space-y-1 text-center">
+            <div className="text-xs text-slate-500">{item.label}</div>
+            <div className={`text-sm font-semibold ${item.color}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+function MarketPulse({
+  scores, nbComparables, delay,
+}: { scores: EstimationResponse["scores"]; nbComparables: number; delay: number }) {
+  const tension = scores.marche.value
+  const tendance = tension > 75 ? "hausse" : tension > 50 ? "stable" : "baisse"
+  const delaiVente = tension > 80 ? "~30 j" : tension > 65 ? "~45 j" : tension > 50 ? "~60 j" : "> 90 j"
+  const activite = nbComparables >= 15 ? "Élevée" : nbComparables >= 7 ? "Modérée" : "Faible"
+  const activiteColor = nbComparables >= 15 ? "text-emerald-400" : nbComparables >= 7 ? "text-amber-400" : "text-red-400"
+
+  const TrendIcon = tendance === "hausse" ? ArrowUp : tendance === "baisse" ? ArrowDown : Minus
+  const trendColor = tendance === "hausse" ? "text-emerald-400" : tendance === "baisse" ? "text-red-400" : "text-slate-400"
+
+  const stats = [
+    { label: "Tendance marché", value: tendance.charAt(0).toUpperCase() + tendance.slice(1), icon: <TrendIcon className={`h-3.5 w-3.5 ${trendColor}`} />, color: trendColor },
+    { label: "Activité du secteur", value: activite, icon: <BarChart3 className={`h-3.5 w-3.5 ${activiteColor}`} />, color: activiteColor },
+    { label: "Délai de vente estimé", value: delaiVente, icon: <TrendingUp className="h-3.5 w-3.5 text-blue-400" />, color: "text-blue-400" },
+    { label: "Transactions analysées", value: `${nbComparables} ventes`, icon: <Building2 className="h-3.5 w-3.5 text-slate-400" />, color: "text-slate-300" },
+  ]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay }}
+      className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4"
+    >
+      <div className="flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-blue-400" />
+        <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+          Pouls du marché local
+        </h2>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">{s.icon}{s.label}</div>
+            <div className={`text-sm font-semibold ${s.color}`}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+function MortgageCalc({
+  medianPrice, delay,
+}: { medianPrice: number; delay: number }) {
+  const [apport, setApport] = useState(20)
+  const [duree, setDuree] = useState(20)
+  const TAUX = 0.038
+
+  const principal = medianPrice * (1 - apport / 100)
+  const mensualite = monthlyPayment(principal, TAUX, duree)
+  const coutTotal = mensualite * duree * 12
+  const coutCredit = coutTotal - principal
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay }}
+      className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5"
+    >
+      <div className="flex items-center gap-2">
+        <Calculator className="h-4 w-4 text-blue-400" />
+        <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+          Simulation financement
+        </h2>
+        <span className="ml-auto text-xs text-slate-500">Taux indicatif : {(TAUX * 100).toFixed(1)}%</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-slate-400">
+            <span>Apport personnel</span>
+            <span className="font-medium text-white">{apport}% — {formatCurrency(medianPrice * apport / 100, true)}</span>
+          </div>
+          <input
+            type="range" min={5} max={50} step={5} value={apport}
+            onChange={(e) => setApport(+e.target.value)}
+            className="w-full accent-blue-500 h-1.5"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-slate-400">
+            <span>Durée du prêt</span>
+            <span className="font-medium text-white">{duree} ans</span>
+          </div>
+          <input
+            type="range" min={10} max={30} step={5} value={duree}
+            onChange={(e) => setDuree(+e.target.value)}
+            className="w-full accent-blue-500 h-1.5"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 pt-1">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3.5 text-center space-y-1">
+          <div className="text-xs text-slate-500">Mensualité</div>
+          <div className="text-lg font-semibold text-blue-400">{formatCurrency(mensualite, true)}/mois</div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3.5 text-center space-y-1">
+          <div className="text-xs text-slate-500">Montant emprunté</div>
+          <div className="text-lg font-semibold text-slate-200">{formatCurrency(principal, true)}</div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3.5 text-center space-y-1">
+          <div className="text-xs text-slate-500">Coût du crédit</div>
+          <div className="text-lg font-semibold text-slate-400">{formatCurrency(coutCredit, true)}</div>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-600">
+        Simulation indicative. Taux fixe 3,8% hors assurance. Consultez un courtier pour une offre personnalisée.
+      </p>
+    </motion.div>
+  )
+}
+
+function ComparablesTable({
+  comparables, delay,
+}: { comparables: Comparable[]; delay: number }) {
+  const sorted = [...comparables].sort((a, b) => a.distance_metres - b.distance_metres).slice(0, 5)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay }}
+      className="overflow-x-auto"
+    >
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-800">
+            {["Adresse", "Surface", "Prix/m²", "Distance", "Date"].map((h, i) => (
+              <th key={h} className={`py-2 ${i === 0 ? "pr-4 text-left" : "px-4 text-right"} text-xs font-medium text-slate-500 uppercase tracking-wider`}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((c, i) => {
+            const median = sorted.reduce((s, x) => s + x.prix_m2, 0) / sorted.length
+            const pct = Math.min(100, (c.prix_m2 / median) * 100)
+            const isBelow = c.prix_m2 < median * 0.97
+            const isAbove = c.prix_m2 > median * 1.1
+            return (
+              <tr key={c.id} className={`border-b border-slate-800/50 ${i % 2 === 0 ? "bg-slate-900/20" : ""}`}>
+                <td className="py-2.5 pr-4 text-slate-300">{truncate(c.adresse || c.commune, 28)}</td>
+                <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">{c.surface_reelle_bati}&nbsp;m²</td>
+                <td className="py-2.5 px-4 text-right tabular-nums">
+                  <div className="flex items-center justify-end gap-2">
+                    <div className="w-12 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className={`h-full rounded-full ${isBelow ? "bg-emerald-500" : isAbove ? "bg-red-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                    <span className={isBelow ? "text-emerald-400" : isAbove ? "text-red-400" : "text-slate-300"}>
+                      {formatCurrency(c.prix_m2)}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-4 text-right tabular-nums text-slate-400">
+                  {c.distance_metres < 1000 ? `${c.distance_metres.toFixed(0)} m` : `${(c.distance_metres / 1000).toFixed(1)} km`}
+                </td>
+                <td className="py-2.5 pl-4 text-right text-slate-500">{formatDateFr(c.date_mutation)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          <tr><td colSpan={5} className="pt-3 text-xs text-slate-600">Source : DVF · Direction Générale des Finances Publiques · data.gouv.fr</td></tr>
+        </tfoot>
+      </table>
+    </motion.div>
+  )
+}
+
+function DpeBadge({ classe, conso, delay }: { classe: string; conso?: number | null; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay }}
+      className="inline-flex items-center gap-2"
+    >
+      <span className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold text-white ${dpeBadgeColor(classe)}`}>
+        {classe}
+      </span>
+      <span className="text-sm text-slate-300">
+        DPE&nbsp;: {classe}
+        {conso != null && <span className="text-slate-400">&nbsp;·&nbsp;{Math.round(conso)}&nbsp;kWh/m²/an</span>}
+      </span>
+    </motion.div>
+  )
+}
+
+function ResultsSection({ data }: { data: EstimationResponse }) {
+  const { fourchette, scores, confidence, nb_comparables, comparables, dpe_classe, dpe_conso } = data
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="w-full max-w-6xl lg:max-w-7xl mx-auto pb-12"
+    >
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-8 lg:items-start space-y-6 lg:space-y-0">
+        {/* Left column: main content */}
+        <div className="space-y-6">
+          {/* A: Fourchette + barre de prix */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Fourchette de prix</h2>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(confidence)}`}>
+                  Confiance&nbsp;: {(confidence * 100).toFixed(0)}%
+                </span>
+                <span className="text-xs text-slate-500">{nb_comparables} transactions comparables</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <PriceCard label="Min" total={fourchette.min} perM2={fourchette.prix_m2_min} delay={0.05} />
+              <PriceCard label="Médiane" total={fourchette.median} perM2={fourchette.prix_m2_median} accent delay={0.1} />
+              <PriceCard label="Max" total={fourchette.max} perM2={fourchette.prix_m2_max} delay={0.15} />
+            </div>
+
+            <PriceRangeBar min={fourchette.min} median={fourchette.median} max={fourchette.max} delay={0.2} />
+
+            {dpe_classe && (
+              <div className="pt-1 border-t border-slate-800">
+                <DpeBadge classe={dpe_classe} conso={dpe_conso} delay={0.25} />
+              </div>
+            )}
+          </div>
+
+          {/* B: Pouls du marché */}
+          <MarketPulse scores={scores} nbComparables={nb_comparables} delay={0.1} />
+
+          {/* C: Simulateur prêt */}
+          <MortgageCalc medianPrice={fourchette.median} delay={0.15} />
+
+          {/* D: Scores 4D */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Scores 4D</h2>
+            </div>
+            <div className="space-y-4">
+              <ScoreBar label={scores.localisation.label} value={scores.localisation.value} weight={scores.localisation.weight} delay={0.1} />
+              <ScoreBar label={scores.marche.label} value={scores.marche.value} weight={scores.marche.weight} delay={0.15} />
+              <ScoreBar label={scores.bien.label} value={scores.bien.value} weight={scores.bien.weight} delay={0.2} />
+              <ScoreBar label={scores.dpe.label} value={scores.dpe.value} weight={scores.dpe.weight} delay={0.25} />
+            </div>
+          </div>
+
+          {/* E: Comparables */}
+          {comparables && comparables.length > 0 && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Transactions comparables</h2>
+              </div>
+              <ComparablesTable comparables={comparables} delay={0.1} />
+            </div>
+          )}
+        </div>
+
+        {/* Right column: sticky VerdictIA + GlobalScoreRing */}
+        <div className="lg:sticky lg:top-[57px] space-y-4">
+          <VerdictIA fourchette={fourchette} scores={scores} dpe_classe={dpe_classe} confidence={confidence} />
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col items-center gap-2">
+            <GlobalScoreRing value={scores.global} delay={0.35} />
+            <p className="text-xs text-slate-500 text-center mt-1">Score composite AURESTATE basé sur 4 dimensions</p>
+          </div>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+// ─── Financement section ─────────────────────────────────────────────────────
+
+const BANKS_PREVIEW = [
+  { logo: "BNP", color: "#00965e", taux: "3,45 %" },
+  { logo: "CA", color: "#008a00", taux: "3,52 %" },
+  { logo: "SG", color: "#e2001a", taux: "3,58 %" },
+  { logo: "BB", color: "#0066cc", taux: "3,38 %" },
+  { logo: "LCL", color: "#0070b8", taux: "3,61 %" },
+]
+
+function FinancementSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.45 }}
+      className="w-full py-10 px-4 border-t border-slate-800/40"
+    >
+      <div className="mx-auto max-w-6xl lg:max-w-7xl">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+          <div className="lg:grid lg:grid-cols-[1fr_auto] gap-0">
+            {/* Left */}
+            <div className="p-6 sm:p-8 space-y-5">
+              <div>
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Financement</div>
+                <h2 className="text-xl font-light text-white leading-snug">Explorez vos options de prêt immobilier</h2>
+                <p className="text-sm text-slate-400 mt-1.5 max-w-md">Calculez vos mensualités et comparez les offres de BNP Paribas, Crédit Agricole, Boursobank et plus encore.</p>
+              </div>
+
+              {/* Bank logos */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {BANKS_PREVIEW.map(b => (
+                  <div key={b.logo}
+                    className="rounded-xl w-14 h-9 flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: b.color }}
+                  >
+                    {b.logo}
+                  </div>
+                ))}
+                <span className="text-xs text-slate-500">+ d&apos;autres</span>
+              </div>
+
+              {/* Rate preview */}
+              <div className="flex flex-wrap gap-3">
+                {BANKS_PREVIEW.slice(0, 3).map(b => (
+                  <div key={b.logo} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs">
+                    <span className="text-slate-500">{b.logo} ·</span>{" "}
+                    <span className="text-white font-semibold">{b.taux}</span>
+                  </div>
+                ))}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs text-slate-500">sur 20 ans</div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <a href="/prets"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 transition-colors px-5 py-2.5 text-sm font-semibold text-white">
+                  <Calculator className="h-4 w-4" />Calculer mes mensualités
+                </a>
+                <a href="/prets#comparer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 hover:bg-slate-800 transition-colors px-5 py-2.5 text-sm text-slate-300">
+                  <ArrowRight className="h-4 w-4 text-blue-400" />Comparer les banques
+                </a>
+              </div>
+            </div>
+
+            {/* Right: visual monthly estimate */}
+            <div className="hidden lg:flex flex-col justify-center border-l border-slate-800 px-8 py-6 bg-slate-950/40 space-y-4 min-w-[240px]">
+              <div className="text-xs text-slate-500 uppercase tracking-widest">Exemple — 300 000 € / 20 ans</div>
+              {BANKS_PREVIEW.map(b => {
+                const r = 3.45 / 100 / 12
+                const n = 20 * 12
+                const rB = parseFloat(b.taux.replace(",", ".")) / 100 / 12
+                const m = Math.round((300000 * rB * Math.pow(1 + rB, n)) / (Math.pow(1 + rB, n) - 1))
+                const best = 1662
+                const pct = Math.min(100, Math.round((m / (best * 1.1)) * 100))
+                return (
+                  <div key={b.logo} className="flex items-center gap-2">
+                    <div className="shrink-0 rounded w-8 h-6 flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: b.color }}>{b.logo}</div>
+                    <div className="flex-1 h-1 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-300 tabular-nums">{m.toLocaleString("fr-FR")} €</span>
+                  </div>
+                )
+              })}
+              <p className="text-xs text-slate-600">mensualité hors assurance</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+// ─── Marchés en vue (like realestate.com.au suburb highlights) ───────────────
+
+const MARCHES_HOT = [
+  { code: "75011", nom: "11ème · Popincourt", prix_m2: 11800, tendance: 3.8, score: 90, badge: "Très demandé", photo: "photo-1499856871958-5b9627545d1a" },
+  { code: "75019", nom: "19ème · Buttes-Chaumont", prix_m2: 9500, tendance: 4.8, score: 92, badge: "Forte hausse", photo: "photo-1431051047106-f1e17d81042f" },
+  { code: "75010", nom: "10ème · Entrepôt", prix_m2: 11200, tendance: 4.1, score: 88, badge: "Dynamique", photo: "photo-1502602898657-3e91760cbb34" },
+  { code: "75013", nom: "13ème · Gobelins", prix_m2: 10500, tendance: 2.9, score: 84, badge: "Bon DPE", photo: "photo-1522093007474-d86e9bf7ba6f" },
+  { code: "75012", nom: "12ème · Reuilly", prix_m2: 10800, tendance: 3.5, score: 87, badge: "Top rapport", photo: "photo-1545324418-cc1a3fa10c00" },
+]
+
+function MarchesSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }}
+      className="w-full py-10 px-4 border-t border-slate-800/40"
+    >
+      <div className="mx-auto max-w-6xl lg:max-w-7xl">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Marchés en vue</div>
+            <h2 className="text-lg font-light text-white">Arrondissements les plus actifs</h2>
+          </div>
+          <a href="/quartier" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition-colors">
+            Voir tous <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+          {MARCHES_HOT.map((m, i) => (
+            <motion.a
+              key={m.code}
+              href="/quartier"
+              initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.5 + i * 0.07 }}
+              className="shrink-0 snap-start w-52 rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden hover:border-blue-500/40 hover:shadow-lg hover:shadow-black/30 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              {/* Photo */}
+              <div className="h-28 overflow-hidden relative">
+                <img src={`https://images.unsplash.com/${m.photo}?w=300&h=160&fit=crop&auto=format`}
+                  alt={m.nom} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent" />
+                <span className="absolute bottom-2 left-3 text-xs font-semibold text-white bg-blue-600/80 backdrop-blur-sm rounded-full px-2 py-0.5">{m.badge}</span>
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="text-sm font-semibold text-slate-100 leading-tight">{m.nom}</div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-white">{new Intl.NumberFormat("fr-FR").format(m.prix_m2)} €</div>
+                    <div className="text-xs text-slate-500">/m² médian</div>
+                  </div>
+                  <div className={`text-sm font-bold flex items-center gap-0.5 ${m.tendance >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
+                    <TrendingUp className="h-3.5 w-3.5" />+{m.tendance}%
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-slate-600">
+                    <span>Tension</span><span className="text-slate-400">{m.score}/100</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+                    <div className={`h-full rounded-full ${m.score >= 88 ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${m.score}%` }} />
+                  </div>
+                </div>
+              </div>
+            </motion.a>
+          ))}
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+// ─── Animated word cycle ──────────────────────────────────────────────────────
+
+const CYCLE_WORDS = ["précis", "auditable", "explicable", "transparent"]
+
+function AnimatedWordCycle() {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1) % CYCLE_WORDS.length)
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <p className="mt-2 text-sm text-slate-500 flex items-center justify-center gap-1.5 h-6">
+      <span>données réelles — scoring</span>
+      <span className="relative inline-flex min-w-[7rem] justify-start">
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={CYCLE_WORDS[index]}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.35 }}
+            className="font-semibold text-blue-400 absolute left-0"
+          >
+            {CYCLE_WORDS[index]}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </p>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  const [adresse, setAdresse] = useState("")
+  const [typeLocal, setTypeLocal] = useState<"Appartement" | "Maison">("Appartement")
+  const [surface, setSurface] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<EstimationResponse | null>(null)
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [heroTab, setHeroTab] = useState<"estimer" | "quartier">("estimer")
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
+
+  const scrollToTop = useCallback(() => {
+    setResult(null)
+    heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  function handleDemo(filter?: string | null) {
+    setError(null)
+    const isSousEvalue = filter === "sous-evalue"
+    const isFortPotentiel = filter === "fort-potentiel"
+    setResult({
+      request_id: "demo",
+      adresse_geocodee: isSousEvalue ? "42 rue Oberkampf, 75011 Paris" : isFortPotentiel ? "7 rue de la Roquette, 75011 Paris" : "10 rue de Rivoli, 75001 Paris",
+      latitude: 48.8566, longitude: 2.3522, geocoding_score: 0.98,
+      fourchette: isSousEvalue
+        ? { min: 420000, median: 490000, max: 580000, p25: 455000, p75: 535000, prix_m2_min: 6500, prix_m2_median: 7538, prix_m2_max: 8923, prix_m2_p25: 7000, prix_m2_p75: 8231 }
+        : { min: 487500, median: 610000, max: 742500, p25: 548000, p75: 676000, prix_m2_min: 7500, prix_m2_median: 9385, prix_m2_max: 11423, prix_m2_p25: 8431, prix_m2_p75: 10400 },
+      scores: isSousEvalue ? {
+        localisation: { label: "Valeur marché", value: 91.0, weight: 0.4 },
+        marche: { label: "Tension locale", value: 85.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 75.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 90.0, weight: 0.1 },
+        global: 87.1,
+      } : filter === "risque-faible" ? {
+        localisation: { label: "Valeur marché", value: 72.0, weight: 0.4 },
+        marche: { label: "Tension locale", value: 78.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 88.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 95.0, weight: 0.1 },
+        global: 79.3,
+      } : {
+        localisation: { label: "Valeur marché", value: 78.5, weight: 0.4 },
+        marche: { label: "Tension locale", value: 92.0, weight: 0.3 },
+        bien: { label: "Liquidité", value: 80.0, weight: 0.2 },
+        dpe: { label: "Risque énergétique", value: 75.0, weight: 0.1 },
+        global: 82.6,
+      },
+      confidence: isSousEvalue ? 0.92 : 0.87, nb_comparables: isSousEvalue ? 22 : 17,
+      dpe_classe: filter === "risque-faible" ? "B" : "C", dpe_conso: filter === "risque-faible" ? 89 : 178,
+      comparables: [
+        { id: "1", adresse: "8 rue de Rivoli", commune: "Paris", date_mutation: "2024-03-15", type_local: "Appartement", surface_reelle_bati: 63, valeur_fonciere: 598000, prix_m2: 9492, distance_metres: 45 },
+        { id: "2", adresse: "14 rue de Rivoli", commune: "Paris", date_mutation: "2024-01-22", type_local: "Appartement", surface_reelle_bati: 71, valeur_fonciere: 645000, prix_m2: 9085, distance_metres: 112 },
+        { id: "3", adresse: "3 rue du Louvre", commune: "Paris", date_mutation: "2023-11-08", type_local: "Appartement", surface_reelle_bati: 58, valeur_fonciere: 562000, prix_m2: 9690, distance_metres: 198 },
+        { id: "4", adresse: "21 rue Saint-Honoré", commune: "Paris", date_mutation: "2024-02-14", type_local: "Appartement", surface_reelle_bati: 69, valeur_fonciere: 598000, prix_m2: 8667, distance_metres: 287 },
+        { id: "5", adresse: "5 rue du Pont-Neuf", commune: "Paris", date_mutation: "2023-12-03", type_local: "Appartement", surface_reelle_bati: 55, valeur_fonciere: 534000, prix_m2: 9709, distance_metres: 342 },
+      ],
+    })
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const surfaceNum = parseFloat(surface)
+    if (!adresse.trim()) { setError("Veuillez saisir une adresse."); return }
+    if (isNaN(surfaceNum) || surfaceNum <= 0) { setError("Veuillez saisir une surface valide."); return }
+    setLoading(true); setResult(null)
+    try {
+      const data = await fetchEstimation({ adresse: adresse.trim(), type_local: typeLocal, surface_bati: surfaceNum } as EstimationRequest)
+      setResult(data)
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.")
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      {/* Sticky back button */}
+      <AnimatePresence>
+        {result && (
+          <motion.button
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 backdrop-blur px-4 py-2.5 text-sm font-medium text-slate-300 shadow-xl transition hover:bg-slate-800 hover:text-white"
+          >
+            <ChevronUp className="h-4 w-4" />
+            Nouvelle estimation
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Hero */}
+      <section ref={heroRef} className="relative flex flex-col items-center justify-center min-h-[75vh] px-4 py-20 sm:py-28 overflow-hidden bg-slate-950">
+        {/* Animated background */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {/* SVG dot grid */}
+          <svg className="absolute inset-0 h-full w-full opacity-[0.03]" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="1" fill="white" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+          {/* Gradient orbs */}
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], opacity: [0.06, 0.1, 0.06] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute left-1/2 top-[-8rem] -translate-x-1/2 h-[36rem] w-[36rem] rounded-full bg-blue-600 blur-3xl"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.04, 0.07, 0.04] }}
+            transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+            className="absolute left-[10%] top-[20%] h-64 w-64 rounded-full bg-indigo-500 blur-3xl"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], opacity: [0.03, 0.06, 0.03] }}
+            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+            className="absolute right-[8%] top-[30%] h-48 w-48 rounded-full bg-blue-400 blur-3xl"
+          />
+          {/* Bottom fade */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent" />
+        </div>
+
+        <div className="relative w-full max-w-6xl lg:max-w-7xl">
+          <div className="lg:grid lg:grid-cols-[1fr_420px] lg:gap-12 lg:items-center flex flex-col items-center gap-6">
+            {/* Left: headline + form */}
+            <div className="flex flex-col items-center lg:items-start gap-6 w-full">
+              <motion.span
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+                className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300 backdrop-blur-sm"
+              >
+                <motion.span
+                  animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.8, repeat: Infinity }}
+                  className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block"
+                />
+                Données DVF&nbsp;·&nbsp;France métropolitaine&nbsp;·&nbsp;Open Data
+              </motion.span>
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}
+                className="text-center lg:text-left"
+              >
+                <h1
+                  className="text-6xl sm:text-7xl font-extralight tracking-tight text-white"
+                  style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.3))" }}
+                >AURESTATE</h1>
+                <p className="mt-3 text-slate-400 text-base sm:text-lg">Votre assistant décisionnel immobilier — données réelles, scores explicables</p>
+                <AnimatedWordCycle />
+              </motion.div>
+
+              {/* Tabs */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.08 }}
+                className="flex gap-1 rounded-xl border border-slate-700/60 bg-slate-900/60 backdrop-blur-sm p-1 w-full"
+              >
+                {[
+                  { key: "estimer" as const, label: "Estimer un bien", icon: <Home className="h-3.5 w-3.5" /> },
+                  { key: "quartier" as const, label: "Explorer un quartier", icon: <MapPin className="h-3.5 w-3.5" /> },
+                ].map(t => (
+                  <button
+                    key={t.key} type="button"
+                    onClick={() => setHeroTab(t.key)}
+                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+                      heroTab === t.key
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {t.icon}{t.label}
+                  </button>
+                ))}
+              </motion.div>
+
+              {/* Tab content */}
+              <AnimatePresence mode="wait">
+              {heroTab === "quartier" ? (
+                <motion.div
+                  key="quartier-tab"
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 w-full"
+                >
+                  <p className="text-sm text-slate-400 text-center lg:text-left">Explorez les 20 arrondissements parisiens — prix DVF, score tension, délais de vente.</p>
+                  <a href="/quartier"
+                    className="block w-full rounded-xl bg-slate-800 border border-slate-700 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+                  >
+                    Voir les profils de quartier →
+                  </a>
+                </motion.div>
+              ) : (
+              <motion.form
+                key="estimer-tab"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={handleSubmit} className="w-full space-y-3"
+              >
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <input
+                    type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
+                    placeholder="10 rue de Rivoli, 75001 Paris"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Home className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <select
+                      value={typeLocal} onChange={(e) => setTypeLocal(e.target.value as "Appartement" | "Maison")}
+                      className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                    >
+                      <option value="Appartement">Appartement</option>
+                      <option value="Maison">Maison</option>
+                    </select>
+                  </div>
+                  <div className="relative flex-1">
+                    <Ruler className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <input
+                      type="number" value={surface} onChange={(e) => setSurface(e.target.value)}
+                      placeholder="65" min={1} step={0.5}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-12 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                      required
+                    />
+                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">m²</span>
+                  </div>
+                </div>
+
+                {/* Smart filter chips */}
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: "sous-evalue", label: "Sous-évalué", icon: <Sparkles className="h-3 w-3" />, color: "emerald" },
+                    { id: "fort-potentiel", label: "Fort potentiel", icon: <Target className="h-3 w-3" />, color: "blue" },
+                    { id: "risque-faible", label: "Risque faible", icon: <ShieldCheck className="h-3 w-3" />, color: "amber" },
+                  ].map((f) => (
+                    <button
+                      key={f.id} type="button"
+                      onClick={() => setActiveFilter(activeFilter === f.id ? null : f.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                        activeFilter === f.id
+                          ? f.color === "emerald" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
+                            : f.color === "blue" ? "border-blue-500/60 bg-blue-500/15 text-blue-400"
+                            : "border-amber-500/60 bg-amber-500/15 text-amber-400"
+                          : "border-slate-700 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      {f.icon}{f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence>
+                  {error && (
+                    <motion.p key="error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400"
+                    >{error}</motion.p>
+                  )}
+                </AnimatePresence>
+
+                <button type="button" onClick={() => handleDemo(activeFilter)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800/40 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                >
+                  Voir la démo — Paris 1er (sans backend)
+                </button>
+
+                <button type="submit" disabled={loading}
+                  className="relative w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} className="inline-flex">
+                        <Loader2 className="h-4 w-4" />
+                      </motion.span>
+                      Estimation en cours…
+                    </span>
+                  ) : "Estimer"}
+                </button>
+              </motion.form>
+              )}
+              </AnimatePresence>
+            </div>
+
+            {/* Right: Live Market stats panel */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.15 }}
+              className="hidden lg:flex w-full flex-col gap-4"
+            >
+              {/* Animated border-glow panel */}
+              <div className="relative rounded-2xl overflow-hidden">
+                {/* Glow border animation */}
+                <motion.div
+                  animate={{ opacity: [0.4, 0.8, 0.4] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-2xl"
+                  style={{ boxShadow: "0 0 0 1px rgba(59,130,246,0.3), 0 0 20px rgba(59,130,246,0.12), 0 0 40px rgba(59,130,246,0.06)" }}
+                />
+                <div className="relative rounded-2xl border border-blue-500/20 bg-slate-900/80 backdrop-blur-sm p-6 space-y-5">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <motion.span
+                        animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
+                        className="h-2 w-2 rounded-full bg-emerald-400 inline-block"
+                      />
+                      <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Live Market · Paris</span>
+                    </div>
+                    <span className="text-xs text-slate-500">DVF 2024</span>
+                  </div>
+
+                  {/* Main price */}
+                  <div className="space-y-1">
+                    <div className="text-xs text-slate-500 uppercase tracking-wider">Prix médian Paris</div>
+                    <div className="text-4xl font-extralight text-white tracking-tight">10 850 <span className="text-xl text-slate-400">€/m²</span></div>
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                      <span className="text-sm font-semibold text-emerald-400">+3.2% / an</span>
+                    </div>
+                  </div>
+
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Ventes / an", value: "14 247", sub: "Paris intramuros", color: "text-blue-400" },
+                      { label: "Délai moyen", value: "47 jours", sub: "temps de vente", color: "text-amber-400" },
+                      { label: "Meilleur score", value: "19e — 92/100", sub: "Buttes-Chaumont", color: "text-emerald-400" },
+                      { label: "Volume DVF", value: "847 k+", sub: "transactions analysées", color: "text-slate-200" },
+                    ].map(s => (
+                      <div key={s.label} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3.5 space-y-1">
+                        <div className="text-xs text-slate-500">{s.label}</div>
+                        <div className={`text-sm font-semibold ${s.color}`}>{s.value}</div>
+                        <div className="text-xs text-slate-600">{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Mini price bar by arrondissement */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-slate-500 uppercase tracking-wider">Fourchette Paris</div>
+                    {[
+                      { label: "7e (max)", prix: 17500, pct: 100 },
+                      { label: "Médiane", prix: 10850, pct: 58 },
+                      { label: "19e (min)", prix: 9500, pct: 43 },
+                    ].map(r => (
+                      <div key={r.label} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-16 shrink-0">{r.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${r.pct}%` }} />
+                        </div>
+                        <span className="text-xs text-slate-400 tabular-nums shrink-0">{new Intl.NumberFormat("fr-FR").format(r.prix)} €</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <a href="/marche" className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-blue-400 hover:text-blue-300 transition-colors group">
+                    <span>Voir le baromètre complet</span>
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Bottom radial gradient border to fade into next section */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-32"
+          style={{ background: "radial-gradient(ellipse 80% 100% at 50% 100%, rgba(59,130,246,0.07) 0%, transparent 70%), linear-gradient(to top, rgb(2 6 23) 0%, transparent 100%)" }}
+        />
+      </section>
+
+      {/* Trust strip */}
+      <TrustStrip />
+
+      {/* Results */}
+      <div ref={resultsRef}>
+        <AnimatePresence>
+          {result && (
+            <section className="px-4 py-6">
+              <ResultsSection data={result} />
+            </section>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Marchés en vue */}
+      {!result && <MarchesSection />}
+
+      {/* Financement */}
+      {!result && <FinancementSection />}
+
+      {/* Why AURESTATE section */}
+      {!result && (
+        <section className="px-4 py-14 border-t border-slate-800/50">
+          <div className="mx-auto max-w-3xl space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.5 }}
+              className="text-center space-y-2"
+            >
+              <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest">Pourquoi AURESTATE</div>
+              <h2 className="text-2xl font-light text-white">L&apos;alternative aux plateformes d&apos;annonces</h2>
+              <p className="text-slate-400 text-sm max-w-xl mx-auto">
+                Pas d&apos;agents, pas de placement payant, pas d&apos;annonces. Uniquement des données DVF publiques et un scoring explicable.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.6 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+            >
+              {[
+                {
+                  icon: <ShieldCheck className="h-5 w-5 text-emerald-400" />,
+                  title: "Données auditables",
+                  desc: "Toutes nos estimations sont basées sur les transactions DVF de la DGFIP. Vérifiables, sans filtre.",
+                  vs: "vs estimations d'agents non sourcées",
+                },
+                {
+                  icon: <Target className="h-5 w-5 text-blue-400" />,
+                  title: "Scoring 4D explicable",
+                  desc: "Valeur marché, tension locale, liquidité, risque DPE — chaque score est décomposé et compréhensible.",
+                  vs: "vs prix affiché opaque",
+                },
+                {
+                  icon: <Sparkles className="h-5 w-5 text-amber-400" />,
+                  title: "Zéro placement payant",
+                  desc: "Aucun bien ne remonte en tête parce qu'un agent a payé. Le classement reflète uniquement les données.",
+                  vs: "vs portails ads-driven",
+                },
+              ].map((f) => (
+                <div key={f.title} className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    {f.icon}
+                    <span className="text-sm font-semibold text-slate-100">{f.title}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">{f.desc}</p>
+                  <span className="inline-block text-xs text-slate-600 italic">{f.vs}</span>
+                </div>
+              ))}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              className="flex flex-wrap justify-center gap-3"
+            >
+              <a href="/quartier"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                <MapPin className="h-4 w-4 text-blue-400" />
+                Explorer les quartiers Paris
+              </a>
+              <a href="/methode"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                <BarChart3 className="h-4 w-4 text-slate-400" />
+                Notre méthodologie
+              </a>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* Footer — SEO links like realestate.com.au */}
+      <footer className="mt-auto border-t border-slate-800 bg-slate-900/30">
+        {/* SEO link grid */}
+        <div className="mx-auto max-w-5xl px-4 py-10 grid grid-cols-2 sm:grid-cols-4 gap-6 border-b border-slate-800">
+          {[
+            {
+              title: "Arrondissements",
+              links: ["Immobilier 11ème", "Immobilier 19ème", "Immobilier 10ème", "Immobilier 13ème", "Immobilier 15ème", "Voir tous →"],
+              hrefs: ["/quartier","/quartier","/quartier","/quartier","/quartier","/quartier"],
+            },
+            {
+              title: "Outils",
+              links: ["Estimation DVF", "Score de quartier", "Simulation prêt", "Scoring 4D"],
+              hrefs: ["/","/quartier","/","/#scoring"],
+            },
+            {
+              title: "Comprendre",
+              links: ["Notre méthode", "C'est quoi le DVF ?", "Scoring énergétique", "API publique"],
+              hrefs: ["/methode","/methode","/methode","/docs"],
+            },
+            {
+              title: "Données",
+              links: ["DVF DGFIP", "ADEME DPE", "API Adresse", "Open Data"],
+              hrefs: ["/methode","/methode","/methode","/docs"],
+            },
+          ].map(col => (
+            <div key={col.title} className="space-y-2">
+              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{col.title}</div>
+              {col.links.map((l, i) => (
+                <a key={l} href={col.hrefs[i]} className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">{l}</a>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom bar */}
+        <div className="mx-auto max-w-5xl px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
+          <span>AURESTATE&nbsp;·&nbsp;Données DVF publiques&nbsp;·&nbsp;RGPD compliant&nbsp;·&nbsp;Pas de placement payant</span>
+          <div className="flex gap-4">
+            <a href="/quartier" className="hover:text-slate-400 transition-colors">Quartiers</a>
+            <a href="/methode" className="hover:text-slate-400 transition-colors">Méthode</a>
+            <a href="/docs" className="hover:text-slate-400 transition-colors">API</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
