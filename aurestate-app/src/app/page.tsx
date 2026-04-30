@@ -95,7 +95,7 @@ function TrustStrip() {
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
       className="w-full border-y border-slate-800/60 bg-slate-900/30 backdrop-blur-sm"
     >
-      <div className="mx-auto max-w-2xl px-4 py-4 flex flex-col sm:flex-row items-center justify-around gap-4 sm:gap-0">
+      <div className="mx-auto max-w-5xl px-4 py-4 flex flex-col sm:flex-row items-center justify-around gap-4 sm:gap-0">
         {stats.map((s, i) => (
           <div key={s.label} className="flex flex-col items-center gap-0.5">
             <span className="text-xl font-semibold tabular-nums text-white">
@@ -536,74 +536,82 @@ function ResultsSection({ data }: { data: EstimationResponse }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full max-w-3xl mx-auto space-y-6 pb-12"
+      className="w-full max-w-6xl lg:max-w-7xl mx-auto pb-12"
     >
-      {/* 0: Verdict IA */}
-      <VerdictIA fourchette={fourchette} scores={scores} dpe_classe={dpe_classe} confidence={confidence} />
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-8 lg:items-start space-y-6 lg:space-y-0">
+        {/* Left column: main content */}
+        <div className="space-y-6">
+          {/* A: Fourchette + barre de prix */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Fourchette de prix</h2>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(confidence)}`}>
+                  Confiance&nbsp;: {(confidence * 100).toFixed(0)}%
+                </span>
+                <span className="text-xs text-slate-500">{nb_comparables} transactions comparables</span>
+              </div>
+            </div>
 
-      {/* A: Fourchette + barre de prix */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Fourchette de prix</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <PriceCard label="Min" total={fourchette.min} perM2={fourchette.prix_m2_min} delay={0.05} />
+              <PriceCard label="Médiane" total={fourchette.median} perM2={fourchette.prix_m2_median} accent delay={0.1} />
+              <PriceCard label="Max" total={fourchette.max} perM2={fourchette.prix_m2_max} delay={0.15} />
+            </div>
+
+            <PriceRangeBar min={fourchette.min} median={fourchette.median} max={fourchette.max} delay={0.2} />
+
+            {dpe_classe && (
+              <div className="pt-1 border-t border-slate-800">
+                <DpeBadge classe={dpe_classe} conso={dpe_conso} delay={0.25} />
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(confidence)}`}>
-              Confiance&nbsp;: {(confidence * 100).toFixed(0)}%
-            </span>
-            <span className="text-xs text-slate-500">{nb_comparables} transactions comparables</span>
+
+          {/* B: Pouls du marché */}
+          <MarketPulse scores={scores} nbComparables={nb_comparables} delay={0.1} />
+
+          {/* C: Simulateur prêt */}
+          <MortgageCalc medianPrice={fourchette.median} delay={0.15} />
+
+          {/* D: Scores 4D */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Scores 4D</h2>
+            </div>
+            <div className="space-y-4">
+              <ScoreBar label={scores.localisation.label} value={scores.localisation.value} weight={scores.localisation.weight} delay={0.1} />
+              <ScoreBar label={scores.marche.label} value={scores.marche.value} weight={scores.marche.weight} delay={0.15} />
+              <ScoreBar label={scores.bien.label} value={scores.bien.value} weight={scores.bien.weight} delay={0.2} />
+              <ScoreBar label={scores.dpe.label} value={scores.dpe.value} weight={scores.dpe.weight} delay={0.25} />
+            </div>
           </div>
+
+          {/* E: Comparables */}
+          {comparables && comparables.length > 0 && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Transactions comparables</h2>
+              </div>
+              <ComparablesTable comparables={comparables} delay={0.1} />
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <PriceCard label="Min" total={fourchette.min} perM2={fourchette.prix_m2_min} delay={0.05} />
-          <PriceCard label="Médiane" total={fourchette.median} perM2={fourchette.prix_m2_median} accent delay={0.1} />
-          <PriceCard label="Max" total={fourchette.max} perM2={fourchette.prix_m2_max} delay={0.15} />
-        </div>
-
-        <PriceRangeBar min={fourchette.min} median={fourchette.median} max={fourchette.max} delay={0.2} />
-
-        {dpe_classe && (
-          <div className="pt-1 border-t border-slate-800">
-            <DpeBadge classe={dpe_classe} conso={dpe_conso} delay={0.25} />
+        {/* Right column: sticky VerdictIA + GlobalScoreRing */}
+        <div className="lg:sticky lg:top-[57px] space-y-4">
+          <VerdictIA fourchette={fourchette} scores={scores} dpe_classe={dpe_classe} confidence={confidence} />
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col items-center gap-2">
+            <GlobalScoreRing value={scores.global} delay={0.35} />
+            <p className="text-xs text-slate-500 text-center mt-1">Score composite AURESTATE basé sur 4 dimensions</p>
           </div>
-        )}
+        </div>
       </div>
-
-      {/* B: Pouls du marché */}
-      <MarketPulse scores={scores} nbComparables={nb_comparables} delay={0.1} />
-
-      {/* C: Simulateur prêt */}
-      <MortgageCalc medianPrice={fourchette.median} delay={0.15} />
-
-      {/* D: Scores 4D */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Scores 4D</h2>
-        </div>
-        <div className="space-y-4">
-          <ScoreBar label={scores.localisation.label} value={scores.localisation.value} weight={scores.localisation.weight} delay={0.1} />
-          <ScoreBar label={scores.marche.label} value={scores.marche.value} weight={scores.marche.weight} delay={0.15} />
-          <ScoreBar label={scores.bien.label} value={scores.bien.value} weight={scores.bien.weight} delay={0.2} />
-          <ScoreBar label={scores.dpe.label} value={scores.dpe.value} weight={scores.dpe.weight} delay={0.25} />
-        </div>
-        <div className="flex justify-center pt-2">
-          <GlobalScoreRing value={scores.global} delay={0.35} />
-        </div>
-      </div>
-
-      {/* E: Comparables */}
-      {comparables && comparables.length > 0 && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Transactions comparables</h2>
-          </div>
-          <ComparablesTable comparables={comparables} delay={0.1} />
-        </div>
-      )}
     </motion.section>
   )
 }
@@ -838,161 +846,245 @@ export default function HomePage() {
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent" />
         </div>
 
-        <div className="relative w-full max-w-2xl flex flex-col items-center gap-6">
-          <motion.span
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-            className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300 backdrop-blur-sm"
-          >
-            <motion.span
-              animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.8, repeat: Infinity }}
-              className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block"
-            />
-            Données DVF&nbsp;·&nbsp;France métropolitaine&nbsp;·&nbsp;Open Data
-          </motion.span>
-
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}
-            className="text-center"
-          >
-            <h1
-              className="text-6xl sm:text-7xl font-extralight tracking-tight text-white"
-              style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.3))" }}
-            >AURESTATE</h1>
-            <p className="mt-3 text-slate-400 text-base sm:text-lg">Votre assistant décisionnel immobilier — données réelles, scores explicables</p>
-            <AnimatedWordCycle />
-          </motion.div>
-
-          {/* Tabs — like realestate.com.au (Acheter/Louer/Vendu) */}
-          <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.08 }}
-            className="flex gap-1 rounded-xl border border-slate-700/60 bg-slate-900/60 backdrop-blur-sm p-1 w-full"
-          >
-            {[
-              { key: "estimer" as const, label: "Estimer un bien", icon: <Home className="h-3.5 w-3.5" /> },
-              { key: "quartier" as const, label: "Explorer un quartier", icon: <MapPin className="h-3.5 w-3.5" /> },
-            ].map(t => (
-              <button
-                key={t.key} type="button"
-                onClick={() => setHeroTab(t.key)}
-                className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
-                  heroTab === t.key
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
+        <div className="relative w-full max-w-6xl lg:max-w-7xl">
+          <div className="lg:grid lg:grid-cols-[1fr_420px] lg:gap-12 lg:items-center flex flex-col items-center gap-6">
+            {/* Left: headline + form */}
+            <div className="flex flex-col items-center lg:items-start gap-6 w-full">
+              <motion.span
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+                className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300 backdrop-blur-sm"
               >
-                {t.icon}{t.label}
-              </button>
-            ))}
-          </motion.div>
-
-          {/* Quartier tab content */}
-          <AnimatePresence mode="wait">
-          {heroTab === "quartier" ? (
-            <motion.div
-              key="quartier-tab"
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-3"
-            >
-              <p className="text-sm text-slate-400 text-center">Explorez les 20 arrondissements parisiens — prix DVF, score tension, délais de vente.</p>
-              <a href="/quartier"
-                className="block w-full rounded-xl bg-slate-800 border border-slate-700 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
-              >
-                Voir les profils de quartier →
-              </a>
-            </motion.div>
-          ) : (
-          <motion.form
-            key="estimer-tab"
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            onSubmit={handleSubmit} className="w-full space-y-3"
-          >
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-              <input
-                type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
-                placeholder="10 rue de Rivoli, 75001 Paris"
-                className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
-                required
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Home className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                <select
-                  value={typeLocal} onChange={(e) => setTypeLocal(e.target.value as "Appartement" | "Maison")}
-                  className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
-                >
-                  <option value="Appartement">Appartement</option>
-                  <option value="Maison">Maison</option>
-                </select>
-              </div>
-              <div className="relative flex-1">
-                <Ruler className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                <input
-                  type="number" value={surface} onChange={(e) => setSurface(e.target.value)}
-                  placeholder="65" min={1} step={0.5}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-12 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
-                  required
+                <motion.span
+                  animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.8, repeat: Infinity }}
+                  className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block"
                 />
-                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">m²</span>
-              </div>
-            </div>
+                Données DVF&nbsp;·&nbsp;France métropolitaine&nbsp;·&nbsp;Open Data
+              </motion.span>
 
-            {/* Smart filter chips */}
-            <div className="flex gap-2 flex-wrap">
-              {[
-                { id: "sous-evalue", label: "Sous-évalué", icon: <Sparkles className="h-3 w-3" />, color: "emerald" },
-                { id: "fort-potentiel", label: "Fort potentiel", icon: <Target className="h-3 w-3" />, color: "blue" },
-                { id: "risque-faible", label: "Risque faible", icon: <ShieldCheck className="h-3 w-3" />, color: "amber" },
-              ].map((f) => (
-                <button
-                  key={f.id} type="button"
-                  onClick={() => setActiveFilter(activeFilter === f.id ? null : f.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
-                    activeFilter === f.id
-                      ? f.color === "emerald" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
-                        : f.color === "blue" ? "border-blue-500/60 bg-blue-500/15 text-blue-400"
-                        : "border-amber-500/60 bg-amber-500/15 text-amber-400"
-                      : "border-slate-700 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600"
-                  }`}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}
+                className="text-center lg:text-left"
+              >
+                <h1
+                  className="text-6xl sm:text-7xl font-extralight tracking-tight text-white"
+                  style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.3))" }}
+                >AURESTATE</h1>
+                <p className="mt-3 text-slate-400 text-base sm:text-lg">Votre assistant décisionnel immobilier — données réelles, scores explicables</p>
+                <AnimatedWordCycle />
+              </motion.div>
+
+              {/* Tabs */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.08 }}
+                className="flex gap-1 rounded-xl border border-slate-700/60 bg-slate-900/60 backdrop-blur-sm p-1 w-full"
+              >
+                {[
+                  { key: "estimer" as const, label: "Estimer un bien", icon: <Home className="h-3.5 w-3.5" /> },
+                  { key: "quartier" as const, label: "Explorer un quartier", icon: <MapPin className="h-3.5 w-3.5" /> },
+                ].map(t => (
+                  <button
+                    key={t.key} type="button"
+                    onClick={() => setHeroTab(t.key)}
+                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+                      heroTab === t.key
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {t.icon}{t.label}
+                  </button>
+                ))}
+              </motion.div>
+
+              {/* Tab content */}
+              <AnimatePresence mode="wait">
+              {heroTab === "quartier" ? (
+                <motion.div
+                  key="quartier-tab"
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 w-full"
                 >
-                  {f.icon}{f.label}
+                  <p className="text-sm text-slate-400 text-center lg:text-left">Explorez les 20 arrondissements parisiens — prix DVF, score tension, délais de vente.</p>
+                  <a href="/quartier"
+                    className="block w-full rounded-xl bg-slate-800 border border-slate-700 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+                  >
+                    Voir les profils de quartier →
+                  </a>
+                </motion.div>
+              ) : (
+              <motion.form
+                key="estimer-tab"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={handleSubmit} className="w-full space-y-3"
+              >
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <input
+                    type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
+                    placeholder="10 rue de Rivoli, 75001 Paris"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Home className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <select
+                      value={typeLocal} onChange={(e) => setTypeLocal(e.target.value as "Appartement" | "Maison")}
+                      className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                    >
+                      <option value="Appartement">Appartement</option>
+                      <option value="Maison">Maison</option>
+                    </select>
+                  </div>
+                  <div className="relative flex-1">
+                    <Ruler className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <input
+                      type="number" value={surface} onChange={(e) => setSurface(e.target.value)}
+                      placeholder="65" min={1} step={0.5}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-12 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30"
+                      required
+                    />
+                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">m²</span>
+                  </div>
+                </div>
+
+                {/* Smart filter chips */}
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: "sous-evalue", label: "Sous-évalué", icon: <Sparkles className="h-3 w-3" />, color: "emerald" },
+                    { id: "fort-potentiel", label: "Fort potentiel", icon: <Target className="h-3 w-3" />, color: "blue" },
+                    { id: "risque-faible", label: "Risque faible", icon: <ShieldCheck className="h-3 w-3" />, color: "amber" },
+                  ].map((f) => (
+                    <button
+                      key={f.id} type="button"
+                      onClick={() => setActiveFilter(activeFilter === f.id ? null : f.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                        activeFilter === f.id
+                          ? f.color === "emerald" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
+                            : f.color === "blue" ? "border-blue-500/60 bg-blue-500/15 text-blue-400"
+                            : "border-amber-500/60 bg-amber-500/15 text-amber-400"
+                          : "border-slate-700 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      {f.icon}{f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence>
+                  {error && (
+                    <motion.p key="error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400"
+                    >{error}</motion.p>
+                  )}
+                </AnimatePresence>
+
+                <button type="button" onClick={() => handleDemo(activeFilter)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800/40 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                >
+                  Voir la démo — Paris 1er (sans backend)
                 </button>
-              ))}
+
+                <button type="submit" disabled={loading}
+                  className="relative w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} className="inline-flex">
+                        <Loader2 className="h-4 w-4" />
+                      </motion.span>
+                      Estimation en cours…
+                    </span>
+                  ) : "Estimer"}
+                </button>
+              </motion.form>
+              )}
+              </AnimatePresence>
             </div>
 
-            <AnimatePresence>
-              {error && (
-                <motion.p key="error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400"
-                >{error}</motion.p>
-              )}
-            </AnimatePresence>
-
-            <button type="button" onClick={() => handleDemo(activeFilter)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800/40 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+            {/* Right: Live Market stats panel */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.15 }}
+              className="hidden lg:flex w-full flex-col gap-4"
             >
-              Voir la démo — Paris 1er (sans backend)
-            </button>
+              {/* Animated border-glow panel */}
+              <div className="relative rounded-2xl overflow-hidden">
+                {/* Glow border animation */}
+                <motion.div
+                  animate={{ opacity: [0.4, 0.8, 0.4] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-2xl"
+                  style={{ boxShadow: "0 0 0 1px rgba(59,130,246,0.3), 0 0 20px rgba(59,130,246,0.12), 0 0 40px rgba(59,130,246,0.06)" }}
+                />
+                <div className="relative rounded-2xl border border-blue-500/20 bg-slate-900/80 backdrop-blur-sm p-6 space-y-5">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <motion.span
+                        animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
+                        className="h-2 w-2 rounded-full bg-emerald-400 inline-block"
+                      />
+                      <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Live Market · Paris</span>
+                    </div>
+                    <span className="text-xs text-slate-500">DVF 2024</span>
+                  </div>
 
-            <button type="submit" disabled={loading}
-              className="relative w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} className="inline-flex">
-                    <Loader2 className="h-4 w-4" />
-                  </motion.span>
-                  Estimation en cours…
-                </span>
-              ) : "Estimer"}
-            </button>
-          </motion.form>
-          )}
-          </AnimatePresence>
+                  {/* Main price */}
+                  <div className="space-y-1">
+                    <div className="text-xs text-slate-500 uppercase tracking-wider">Prix médian Paris</div>
+                    <div className="text-4xl font-extralight text-white tracking-tight">10 850 <span className="text-xl text-slate-400">€/m²</span></div>
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                      <span className="text-sm font-semibold text-emerald-400">+3.2% / an</span>
+                    </div>
+                  </div>
+
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Ventes / an", value: "14 247", sub: "Paris intramuros", color: "text-blue-400" },
+                      { label: "Délai moyen", value: "47 jours", sub: "temps de vente", color: "text-amber-400" },
+                      { label: "Meilleur score", value: "19e — 92/100", sub: "Buttes-Chaumont", color: "text-emerald-400" },
+                      { label: "Volume DVF", value: "847 k+", sub: "transactions analysées", color: "text-slate-200" },
+                    ].map(s => (
+                      <div key={s.label} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3.5 space-y-1">
+                        <div className="text-xs text-slate-500">{s.label}</div>
+                        <div className={`text-sm font-semibold ${s.color}`}>{s.value}</div>
+                        <div className="text-xs text-slate-600">{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Mini price bar by arrondissement */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-slate-500 uppercase tracking-wider">Fourchette Paris</div>
+                    {[
+                      { label: "7e (max)", prix: 17500, pct: 100 },
+                      { label: "Médiane", prix: 10850, pct: 58 },
+                      { label: "19e (min)", prix: 9500, pct: 43 },
+                    ].map(r => (
+                      <div key={r.label} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-16 shrink-0">{r.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${r.pct}%` }} />
+                        </div>
+                        <span className="text-xs text-slate-400 tabular-nums shrink-0">{new Intl.NumberFormat("fr-FR").format(r.prix)} €</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <a href="/marche" className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-blue-400 hover:text-blue-300 transition-colors group">
+                    <span>Voir le baromètre complet</span>
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
 
         {/* Bottom radial gradient border to fade into next section */}
