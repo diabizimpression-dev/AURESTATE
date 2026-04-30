@@ -619,11 +619,11 @@ function ResultsSection({ data }: { data: EstimationResponse }) {
 // ─── Marchés en vue (like realestate.com.au suburb highlights) ───────────────
 
 const MARCHES_HOT = [
-  { code: "75011", nom: "11ème · Popincourt", prix_m2: 11800, tendance: 3.8, score: 90, badge: "🔥 Très demandé" },
-  { code: "75019", nom: "19ème · Buttes-Chaumont", prix_m2: 9500, tendance: 4.8, score: 92, badge: "📈 Forte hausse" },
-  { code: "75010", nom: "10ème · Entrepôt", prix_m2: 11200, tendance: 4.1, score: 88, badge: "⚡ Dynamique" },
-  { code: "75013", nom: "13ème · Gobelins", prix_m2: 10500, tendance: 2.9, score: 84, badge: "💚 Bon DPE" },
-  { code: "75012", nom: "12ème · Reuilly", prix_m2: 10800, tendance: 3.5, score: 87, badge: "🏆 Top rapport" },
+  { code: "75011", nom: "11ème · Popincourt", prix_m2: 11800, tendance: 3.8, score: 90, badge: "Très demandé", photo: "photo-1499856871958-5b9627545d1a" },
+  { code: "75019", nom: "19ème · Buttes-Chaumont", prix_m2: 9500, tendance: 4.8, score: 92, badge: "Forte hausse", photo: "photo-1431051047106-f1e17d81042f" },
+  { code: "75010", nom: "10ème · Entrepôt", prix_m2: 11200, tendance: 4.1, score: 88, badge: "Dynamique", photo: "photo-1502602898657-3e91760cbb34" },
+  { code: "75013", nom: "13ème · Gobelins", prix_m2: 10500, tendance: 2.9, score: 84, badge: "Bon DPE", photo: "photo-1522093007474-d86e9bf7ba6f" },
+  { code: "75012", nom: "12ème · Reuilly", prix_m2: 10800, tendance: 3.5, score: 87, badge: "Top rapport", photo: "photo-1545324418-cc1a3fa10c00" },
 ]
 
 function MarchesSection() {
@@ -632,7 +632,7 @@ function MarchesSection() {
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }}
       className="w-full py-10 px-4 border-t border-slate-800/40"
     >
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-6xl lg:max-w-7xl">
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Marchés en vue</div>
@@ -643,37 +643,40 @@ function MarchesSection() {
           </a>
         </div>
 
-        {/* Horizontal scroll cards */}
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+        <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
           {MARCHES_HOT.map((m, i) => (
             <motion.a
               key={m.code}
               href="/quartier"
               initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3, delay: 0.5 + i * 0.07 }}
-              className="shrink-0 snap-start w-48 rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3 hover:border-blue-500/40 hover:bg-slate-800/60 transition-all cursor-pointer"
+              className="shrink-0 snap-start w-52 rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden hover:border-blue-500/40 hover:shadow-lg hover:shadow-black/30 transition-all cursor-pointer group hover:-translate-y-0.5"
             >
-              <span className="text-xs text-slate-500">{m.badge}</span>
-              <div>
+              {/* Photo */}
+              <div className="h-28 overflow-hidden relative">
+                <img src={`https://images.unsplash.com/${m.photo}?w=300&h=160&fit=crop&auto=format`}
+                  alt={m.nom} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent" />
+                <span className="absolute bottom-2 left-3 text-xs font-semibold text-white bg-blue-600/80 backdrop-blur-sm rounded-full px-2 py-0.5">{m.badge}</span>
+              </div>
+              <div className="p-4 space-y-2">
                 <div className="text-sm font-semibold text-slate-100 leading-tight">{m.nom}</div>
-                <div className="text-xs text-slate-500 mt-0.5">Score marché</div>
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-base font-semibold text-white">{new Intl.NumberFormat("fr-FR").format(m.prix_m2)} €</div>
-                  <div className="text-xs text-slate-500">/m² médian</div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-white">{new Intl.NumberFormat("fr-FR").format(m.prix_m2)} €</div>
+                    <div className="text-xs text-slate-500">/m² médian</div>
+                  </div>
+                  <div className={`text-sm font-bold flex items-center gap-0.5 ${m.tendance >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
+                    <TrendingUp className="h-3.5 w-3.5" />+{m.tendance}%
+                  </div>
                 </div>
-                <div className={`text-sm font-bold flex items-center gap-0.5 ${m.tendance >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  +{m.tendance}%
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-slate-600">
-                  <span>Tension</span><span className="text-slate-400">{m.score}/100</span>
-                </div>
-                <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
-                  <div className={`h-full rounded-full ${m.score >= 88 ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${m.score}%` }} />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-slate-600">
+                    <span>Tension</span><span className="text-slate-400">{m.score}/100</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+                    <div className={`h-full rounded-full ${m.score >= 88 ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${m.score}%` }} />
+                  </div>
                 </div>
               </div>
             </motion.a>
