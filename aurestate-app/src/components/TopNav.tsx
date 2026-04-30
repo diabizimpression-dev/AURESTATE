@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { label: "Vendu", href: "/vendu" },
   { label: "Investir", href: "/investir" },
   { label: "Marché", href: "/marche" },
+  { label: "Prêts", href: "/prets" },
   { label: "Guide", href: "/guide" },
   { label: "API", href: "/docs" },
 ]

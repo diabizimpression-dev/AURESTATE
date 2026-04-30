@@ -6,7 +6,7 @@ import {
   MapPin, Home, Ruler, Loader2, TrendingUp, TrendingDown,
   BarChart3, Building2, Calculator, Minus, ArrowUp, ArrowDown,
   ChevronUp, Sparkles, Target, ShieldCheck, CheckCircle2, AlertTriangle, XCircle,
-  Activity, ArrowRight,
+  Activity, ArrowRight, Euro,
 } from "lucide-react"
 import {
   fetchEstimation,
@@ -616,6 +616,85 @@ function ResultsSection({ data }: { data: EstimationResponse }) {
   )
 }
 
+// ─── Financement section ─────────────────────────────────────────────────────
+
+const BANKS_PREVIEW = [
+  { logo: "BNP", color: "#00965e", taux: "3,45 %" },
+  { logo: "CA",  color: "#008a00", taux: "3,52 %" },
+  { logo: "SG",  color: "#e2001a", taux: "3,58 %" },
+  { logo: "BB",  color: "#0066cc", taux: "3,38 %" },
+  { logo: "LCL", color: "#0070b8", taux: "3,61 %" },
+]
+
+function FinancementSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.45 }}
+      className="w-full py-10 px-4 border-t border-slate-800/40"
+    >
+      <div className="mx-auto max-w-6xl lg:max-w-7xl">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+          <div className="lg:grid lg:grid-cols-[1fr_auto] gap-0">
+            <div className="p-6 sm:p-8 space-y-5">
+              <div>
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Financement</div>
+                <h2 className="text-xl font-light text-white leading-snug">Explorez vos options de prêt immobilier</h2>
+                <p className="text-sm text-slate-400 mt-1.5 max-w-md">Calculez vos mensualités et comparez les offres de BNP Paribas, Crédit Agricole, Boursobank et plus encore.</p>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {BANKS_PREVIEW.map(b => (
+                  <div key={b.logo}
+                    className="rounded-xl w-14 h-9 flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: b.color }}
+                  >{b.logo}</div>
+                ))}
+                <span className="text-xs text-slate-500">+ d&apos;autres</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {BANKS_PREVIEW.slice(0, 3).map(b => (
+                  <div key={b.logo} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs">
+                    <span className="text-slate-500">{b.logo} ·</span>{" "}
+                    <span className="text-white font-semibold">{b.taux}</span>
+                  </div>
+                ))}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs text-slate-500">sur 20 ans</div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <a href="/prets"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 transition-colors px-5 py-2.5 text-sm font-semibold text-white">
+                  <Calculator className="h-4 w-4" />Calculer mes mensualités
+                </a>
+                <a href="/prets"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/40 hover:bg-slate-800 transition-colors px-5 py-2.5 text-sm text-slate-300">
+                  <ArrowRight className="h-4 w-4 text-blue-400" />Comparer les banques
+                </a>
+              </div>
+            </div>
+            <div className="hidden lg:flex flex-col justify-center border-l border-slate-800 px-8 py-6 bg-slate-950/40 space-y-3 min-w-[240px]">
+              <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Exemple — 300 000 € / 20 ans</div>
+              {BANKS_PREVIEW.map(b => {
+                const rB = parseFloat(b.taux.replace(",", ".")) / 100 / 12
+                const n = 240
+                const m = Math.round((300000 * rB * Math.pow(1 + rB, n)) / (Math.pow(1 + rB, n) - 1))
+                return (
+                  <div key={b.logo} className="flex items-center gap-2">
+                    <div className="shrink-0 rounded w-8 h-6 flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: b.color }}>{b.logo}</div>
+                    <div className="flex-1 h-1 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, Math.round((m / 1800) * 100))}%` }} />
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-300 tabular-nums">{m.toLocaleString("fr-FR")} €</span>
+                  </div>
+                )
+              })}
+              <p className="text-xs text-slate-600 pt-1">mensualité hors assurance</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
 // ─── Marchés en vue (like realestate.com.au suburb highlights) ───────────────
 
 const MARCHES_HOT = [
@@ -1114,6 +1193,9 @@ export default function HomePage() {
 
       {/* Marchés en vue */}
       {!result && <MarchesSection />}
+
+      {/* Financement */}
+      {!result && <FinancementSection />}
 
       {/* Why AURESTATE section */}
       {!result && (
