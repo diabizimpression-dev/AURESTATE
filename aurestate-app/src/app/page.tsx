@@ -676,6 +676,41 @@ function MarchesSection() {
   )
 }
 
+// ─── Animated word cycle ──────────────────────────────────────────────────────
+
+const CYCLE_WORDS = ["précis", "auditable", "explicable", "transparent"]
+
+function AnimatedWordCycle() {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1) % CYCLE_WORDS.length)
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <p className="mt-2 text-sm text-slate-500 flex items-center justify-center gap-1.5 h-6">
+      <span>données réelles — scoring</span>
+      <span className="relative inline-flex min-w-[7rem] justify-start">
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={CYCLE_WORDS[index]}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.35 }}
+            className="font-semibold text-blue-400 absolute left-0"
+          >
+            {CYCLE_WORDS[index]}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </p>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -771,7 +806,7 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* Hero */}
-      <section ref={heroRef} className="relative flex flex-col items-center justify-center px-4 py-20 sm:py-28 overflow-hidden bg-slate-950">
+      <section ref={heroRef} className="relative flex flex-col items-center justify-center min-h-[75vh] px-4 py-20 sm:py-28 overflow-hidden bg-slate-950">
         {/* Animated background */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           {/* SVG dot grid */}
@@ -819,8 +854,12 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}
             className="text-center"
           >
-            <h1 className="text-5xl sm:text-6xl font-light tracking-tight text-white">AURESTATE</h1>
+            <h1
+              className="text-6xl sm:text-7xl font-extralight tracking-tight text-white"
+              style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.3))" }}
+            >AURESTATE</h1>
             <p className="mt-3 text-slate-400 text-base sm:text-lg">Votre assistant décisionnel immobilier — données réelles, scores explicables</p>
+            <AnimatedWordCycle />
           </motion.div>
 
           {/* Tabs — like realestate.com.au (Acheter/Louer/Vendu) */}
@@ -955,6 +994,13 @@ export default function HomePage() {
           )}
           </AnimatePresence>
         </div>
+
+        {/* Bottom radial gradient border to fade into next section */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-32"
+          style={{ background: "radial-gradient(ellipse 80% 100% at 50% 100%, rgba(59,130,246,0.07) 0%, transparent 70%), linear-gradient(to top, rgb(2 6 23) 0%, transparent 100%)" }}
+        />
       </section>
 
       {/* Trust strip */}

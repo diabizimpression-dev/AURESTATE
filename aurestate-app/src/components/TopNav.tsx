@@ -8,7 +8,8 @@ import { Database, Menu, X } from "lucide-react"
 const NAV_LINKS = [
   { label: "Estimer", href: "/" },
   { label: "Quartiers", href: "/quartier" },
-  { label: "Méthode", href: "/methode" },
+  { label: "Marché", href: "/marche" },
+  { label: "Guide", href: "/guide" },
   { label: "API", href: "/docs" },
 ]
 
