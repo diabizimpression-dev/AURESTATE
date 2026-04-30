@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: "Estimer", href: "/" },
   { label: "Quartiers", href: "/quartier" },
   { label: "Vendu", href: "/vendu" },
+  { label: "Investir", href: "/investir" },
   { label: "Marché", href: "/marche" },
   { label: "Guide", href: "/guide" },
   { label: "API", href: "/docs" },
