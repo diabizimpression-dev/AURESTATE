@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[46326,["/AURESTATE/_next/static/chunks/0.lfbi8w9m7n2.js","/AURESTATE/_next/static/chunks/0d3shmwh5_nmn.js","/AURESTATE/_next/static/chunks/014mng8czye4x.js","/AURESTATE/_next/static/chunks/035_uo2z0l6ch.js"],"BienDetail"]
+3:I[97367,["/AURESTATE/_next/static/chunks/0.lfbi8w9m7n2.js","/AURESTATE/_next/static/chunks/0d3shmwh5_nmn.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"t":{"id":"6","adresse":"2 place de la République","arr":"75010","type":"Appartement","surface":63,"prix":567000,"date":"2024-10-22","pieces":3,"dpe":"D","etage":5},"similaires":[{"id":"7","adresse":"18 rue de Lancry","arr":"75010","type":"Appartement","surface":38,"prix":342000,"date":"2024-10-18","pieces":2,"dpe":"E","etage":1},{"id":"8","adresse":"91 quai de Valmy","arr":"75010","type":"Appartement","surface":55,"prix":539000,"date":"2024-10-15","pieces":2,"dpe":"C","etage":3}]}],[["$","script","script-0",{"src":"/AURESTATE/_next/static/chunks/014mng8czye4x.js","async":true}],["$","script","script-1",{"src":"/AURESTATE/_next/static/chunks/035_uo2z0l6ch.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"FsJtiv8qx_qdCf8wLujeS"}
+5:null
