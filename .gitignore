@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Builds
+dist/
+build/
+.next/
+out/
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+.tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Data sensitive / pipeline
+data/raw/
+data/cache/
+data/tmp/
+
+# Python (if ML later)
+__pycache__/
+*.pyc
+
+# Docker volumes
+docker-data/
+
+# Coverage
+coverage/
